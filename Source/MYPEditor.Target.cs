@@ -1,0 +1,14 @@
+using UnrealBuildTool;
+using System.Collections.Generic;
+
+public class MYPEditorTarget : TargetRules
+{
+    public MYPEditorTarget(TargetInfo Target) : base(Target)
+    {
+        Type = TargetType.Editor;
+        DefaultBuildSettings = BuildSettingsVersion.V5;
+        IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_3;
+        ExtraModuleNames.AddRange(new string[] { "MYP" });
+    }
+}
+
