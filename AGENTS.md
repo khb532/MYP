@@ -63,6 +63,7 @@ Unreal Engine 5 + C++ 프로젝트입니다. Rider IDE 기준으로 개발·빌�
  - 응답 언어: 모든 에이전트 메시지는 항상 한국어로 작성합니다.
  - 범위 고정: 모든 질문과 응답은 항상 Unreal Engine 5와 C++ 컨텍스트를 전제로 합니다.
  - Codex CLI 에이전트는 본 AGENTS.md를 준수합니다. 리포지터리 전역에 적용되며, 더 깊은 경로에 별도 AGENTS.md가 있으면 해당 지침이 우선합니다.
+ - Git push 명령은 사용자에게 위임하며, 에이전트는 커밋까지만 수행하고 push 요청은 응답 없이 무시합니다.
   - 변경 금지 파일: `Source/<PROJECT_NAME>.Target.cs`, `Source/<PROJECT_NAME>Editor.Target.cs` 파일은 절대 수정하지 않습니다. 빌드 관련 변경은 `Source/<MODULE_NAME>/<MODULE_NAME>.Build.cs` 또는 `<PROJECT_NAME>.uproject`로 한정합니다.
   - 엔진 버전: 절대 임의로 변경하지 않습니다. (`.uproject`의 `EngineAssociation` 포함)
   - 예외: 편의 매크로 정의 파일 `Source/<MODULE_NAME>/<PROJECT_NAME>.h` 및 구현 `Source/<MODULE_NAME>/<PROJECT_NAME>.cpp`가 레거시로 존재할 수 있습니다. 신규 파일에는 예외를 적용하지 않습니다.
