@@ -66,6 +66,7 @@ Unreal Engine 5 + C++ 프로젝트입니다. Rider IDE 기준으로 개발·빌�
   - 변경 금지 파일: `Source/<PROJECT_NAME>.Target.cs`, `Source/<PROJECT_NAME>Editor.Target.cs` 파일은 절대 수정하지 않습니다. 빌드 관련 변경은 `Source/<MODULE_NAME>/<MODULE_NAME>.Build.cs` 또는 `<PROJECT_NAME>.uproject`로 한정합니다.
   - 엔진 버전: 절대 임의로 변경하지 않습니다. (`.uproject`의 `EngineAssociation` 포함)
   - 예외: 편의 매크로 정의 파일 `Source/<MODULE_NAME>/<PROJECT_NAME>.h` 및 구현 `Source/<MODULE_NAME>/<PROJECT_NAME>.cpp`가 레거시로 존재할 수 있습니다. 신규 파일에는 예외를 적용하지 않습니다.
+ - WSL 환경에서 빌드·패키징·쿠킹·Unreal Editor 실행(PIE 포함) 등 대량 I/O에 의존하는 작업 지시를 받거나 계획된 단계가 확인되면, 먼저 현재 셸이 WSL(Ubuntu)인지 `WSL_DISTRO_NAME` 등 환경 정보를 통해 감지합니다. Ubuntu로 판별되면 PowerShell(Windows) 전환을 권고하는 경고를 사용자에게 출력하고, 사용자가 계속 진행 여부를 회신하기 전까지 해당 지시 실행을 보류합니다.
  - 파일 수정은 필요한 부분만 최소로 편집하며, 기존 내용을 삭제했다가 동일하게 다시 삽입하는 방식은 금지합니다.
  - 널 가드는 null 발생 가능성이 필연적인 위치에만 작성하고, 잠재적 위험 지점에는 주석으로 널 가드 주의를 명시합니다.
  - Codex는 작업 시작 전에 작업계획·작업과정·작업결과검토 순서의 체크리스트를 작성하고 전 과정을 통해 체크리스트를 지속적으로 점검합니다. 체크리스트를 사용자에게 확인받을 때에는 체크리스트와 함께 삽입·삭제·수정 예정 문구를 구체적으로 제시합니다.
