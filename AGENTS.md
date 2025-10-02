@@ -13,12 +13,7 @@ Unreal Engine 5 + C++ 프로젝트입니다. Rider IDE 기준으로 개발·빌�
 - `<PROJECT_LOG_CATEGORY>`: 기본 로그 카테고리(권장: `Log<Module>` 또는 `<PROJECT_NAME>Log`).
 
 ## 프로젝트 구조
-- `Source/<MODULE_NAME>/{Public,Private}`: 클래스당 1쌍(`.h/.cpp`), 파일명=클래스명. 엔트리: `<MODULE_NAME>.Build.cs`, `<PROJECT_NAME>.Target.cs`, `<PROJECT_NAME>Editor.Target.cs`, `<PROJECT_NAME>.uproject`.
-- 폴더/네임스페이스: `Source/<MODULE_NAME>/<Domain>/...` 구조 권장 (예: `Components`, `Ai`, `UI`).
-  - 신규 생성 파일은 필수로 다음 배치를 준수합니다.
-    - 헤더(`.h`): `Source/<MODULE_NAME>/Public/<Domain>/<ClassName>.h`
-    - 구현(`.cpp`): `Source/<MODULE_NAME>/Private/<Domain>/<ClassName>.cpp`
-    - 예) `UserWidget.h` → `Source/<MODULE_NAME>/Public/UI/UserWidget.h`, `UserWidget.cpp` → `Source/<MODULE_NAME>/Private/UI/UserWidget.cpp`
+- `Source/<MODULE_NAME>/{Public,Private}`는 `Source/<MODULE_NAME>/<Domain>` 구조(예: `Components`, `Ai`, `UI`)를 따르며 클래스당 `Public/<Domain>/<ClassName>.h`와 `Private/<Domain>/<ClassName>.cpp` 한 쌍(`.h/.cpp`)으로, 파일명은 클래스명과 동일하게 배치합니다(예: `UserWidget.h` → `Source/<MODULE_NAME>/Public/UI/UserWidget.h`, `UserWidget.cpp` → `Source/<MODULE_NAME>/Private/UI/UserWidget.cpp`). 엔트리 파일은 `<MODULE_NAME>.Build.cs`, `<PROJECT_NAME>.Target.cs`, `<PROJECT_NAME>Editor.Target.cs`, `<PROJECT_NAME>.uproject`입니다.
 - `Content/Blueprints`, `Content/Animation`, `Content/UI`: 블루프린트/애님/위젯 분리. `ABP_Player` 경로: `/Game/Blueprints/ABP_Player.ABP_Player_C`.
 - `Config/Default*.ini`: 설정 관리. `Binaries/`, `Intermediate/`, `Saved/`, `DerivedDataCache/`는 생성물이므로 커밋 금지.
 
@@ -50,12 +45,9 @@ Unreal Engine 5 + C++ 프로젝트입니다. Rider IDE 기준으로 개발·빌�
 
 ## 커밋 · PR 가이드
 - 커밋 메시지 규칙
-  - 제목 접두사: 반드시 대문자 + 대괄호 사용 — 예) `[FEAT]`, `[FIX]`, `[REFACTOR]`, `[DOCS]`, `[TEST]`, `[BUILD]`, `[CI]`, `[PERF]`, `[STYLE]`, `[CHORE]`, `[REVERT]`.
-  - 제목 형식: `[TAG] 명령형 요약` — 한 줄, 72자 이내 권장.
+  - 제목은 대문자 대괄호 접두사(`[FEAT]`, `[FIX]`, `[REFACTOR]`, `[DOCS]`, `[TEST]`, `[BUILD]`, `[CI]`, `[PERF]`, `[STYLE]`, `[CHORE]`, `[REVERT]`)를 붙인 명령형 요약 한 줄(72자 이내)로 작성하며, 본 프로젝트는 Conventional Commits의 콜론 표기(`feat:`) 대신 대괄호 표기(`[FEAT]`)를 사용합니다(예: `[FEAT] 플레이어 대시 기능 추가`, `[FIX] 넉백 계산 오버플로우 수정`).
   - 본문(선택): 변경 이유/배경, 영향 범위, 마이그레이션/리스크, 테스트 방법을 단락으로 기술. 한 줄 72자 내 줄바꿈 권장.
   - 이슈 연계: 필요 시 `Refs: #123` 또는 `Fixes: #123` 표기.
-  - 예시: `[FEAT] 플레이어 대시 기능 추가`, `[FIX] 넉백 계산 오버플로우 수정`.
-  - 참고: 본 프로젝트는 Conventional Commits의 콜론 표기(`feat:`) 대신 대괄호 표기(`[FEAT]`)를 사용합니다.
 - PR: 목적/변경점/리스크/테스트 절차 명시, 시각적 변경은 스크린샷·GIF 첨부. PR은 작고 집중적으로 유지.
 
 ## 보안 · 설정
@@ -68,7 +60,6 @@ Unreal Engine 5 + C++ 프로젝트입니다. Rider IDE 기준으로 개발·빌�
  - Codex CLI 에이전트는 본 AGENTS.md를 준수합니다. 리포지터리 전역에 적용되며, 더 깊은 경로에 별도 AGENTS.md가 있으면 해당 지침이 우선합니다.
   - 변경 금지 파일: `Source/<PROJECT_NAME>.Target.cs`, `Source/<PROJECT_NAME>Editor.Target.cs` 파일은 절대 수정하지 않습니다. 빌드 관련 변경은 `Source/<MODULE_NAME>/<MODULE_NAME>.Build.cs` 또는 `<PROJECT_NAME>.uproject`로 한정합니다.
   - 엔진 버전: 절대 임의로 변경하지 않습니다. (`.uproject`의 `EngineAssociation` 포함)
-  - 소스 배치: 프로젝트 구조 섹션의 Public/Private 및 도메인 폴더 규칙을 반드시 준수합니다.
   - 예외: 편의 매크로 정의 파일 `Source/<MODULE_NAME>/<PROJECT_NAME>.h` 및 구현 `Source/<MODULE_NAME>/<PROJECT_NAME>.cpp`가 레거시로 존재할 수 있습니다. 신규 파일에는 예외를 적용하지 않습니다.
  - 파일 수정은 필요한 부분만 최소로 편집하며, 기존 내용을 삭제했다가 동일하게 다시 삽입하는 방식은 금지합니다.
  - 널 가드는 null 발생 가능성이 필연적인 위치에만 작성하고, 잠재적 위험 지점에는 주석으로 널 가드 주의를 명시합니다.
