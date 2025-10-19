@@ -39,6 +39,18 @@ public class MYP : ModuleRules
 			"MYP/Variant_SideScrolling/Interfaces",
 			"MYP/Variant_SideScrolling/UI"
 		});
+		
+		// 모듈 포함 경로 정리: Public/Private 및 모듈 루트(MYP.h 접근) 추가
+		PublicIncludePaths.AddRange(new string[]
+		{
+			System.IO.Path.Combine(ModuleDirectory, "Public"),
+		});
+
+		PrivateIncludePaths.AddRange(new string[]
+		{
+			System.IO.Path.Combine(ModuleDirectory, "Private"),
+			ModuleDirectory, // 모듈 루트에 있는 MYP.h 접근용
+		});
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

@@ -30,7 +30,7 @@ void ASideScrollingPlayerController::BeginPlay()
 
 		} else {
 
-			UE_LOG(LogMYP, Error, TEXT("Could not spawn mobile controls widget."));
+			UE_LOG(MYPLog, Error, TEXT("Could not spawn mobile controls widget."));
 
 		}
 
