@@ -1,4 +1,21 @@
 {
   "hooks": {},
-  "includeCoAuthoredBy": false
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "allow": [
+      "Read:**/*",
+      "Glob:**/*",
+      "Grep:**/*",
+      "Bash:git status",
+      "Bash:git diff*",
+      "Bash:git add*",
+      "Bash:git commit*",
+      "Bash:git log*",
+      "Bash:git push*"
+    ],
+    "ask": [
+      "Edit:**/*",
+      "Write:**/*"
+    ]
+  }
 }
