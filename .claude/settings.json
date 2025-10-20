@@ -3,27 +3,14 @@
   "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [
-      "Read:**/**",
-      "Glob:**/*",
-      "Grep:**/*",
-      "Bash:git status",
-      "Bash:git diff *",
-      "Bash:git add *",
-      "Bash:git commit *",
-      "Bash:git log *",
-      "Bash:git push *",
-      "Bash:echo *",
-      "Bash:pwd",
-      "Bash:cd *",
-      "Bash:ls *",
-      "Bash:dir *",
-      "Bash:cat *",
-      "Bash:type *",
-      "Bash:npx *",
-      "Edit:**/*"
+      "Read(**/**)",
+      "Glob(**/*)",
+      "Grep(**/*)",
+      "Bash",
+      "Edit(**/*)"
     ],
     "ask": [
-      "Write:**/*"
+      "Write(**/*)"
     ]
   }
 }
