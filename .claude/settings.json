@@ -12,6 +12,7 @@
       "Bash(git commit:*)",
       "Bash(git log:*)",
       "Bash(git push:*)",
+      "Bash(git config:*)",
       "Bash(echo:*)",
       "Bash(pwd)",
       "Bash(cd:*)",
