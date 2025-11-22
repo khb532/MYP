@@ -1,8 +1,10 @@
 {
   "hooks": {},
   "includeCoAuthoredBy": false,
-  "permissions": {
-    "allow": [
+  "permissions": 
+  {
+    "allow": 
+    [
       "Read(**/**)",
       "Glob(**/*)",
       "Grep(**/*)",
@@ -22,10 +24,6 @@
       "Bash(type:*)",
       "Bash(npx:*)",
       "Bash(find:*)"
-    ],
-    "ask": [
-      "Edit(**/*)",
-      "Write(**/*)"
     ]
   }
 }
