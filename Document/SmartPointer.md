@@ -293,7 +293,7 @@ public:
 
     void AttackTarget() {
         if (auto enemy = target.lock()) {  // 타겟이 아직 살아있나?
-            player_->Attack(enemy);
+            this->Attack(enemy);
         } else {
             // 타겟이 죽었다
         }
