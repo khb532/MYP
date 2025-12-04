@@ -7,10 +7,10 @@
 
 ## 프로젝트 개요
 
-**MYP**는 Unreal Engine 5.6 기반의 게임 프로젝트
+Unreal Engine 5 기반의 C++ 게임 프로젝트
 
-**엔진 버전**: Unreal Engine 5.6
-**모듈 타입**: Runtime (단일 모듈)
+**엔진 버전**: Unreal Engine 5.x
+**모듈 타입**: Runtime (단일 또는 다중 모듈)
 **주요 언어**: C++ (블루프린트 통합)
 
 ## 빌드 및 개발 명령어
@@ -18,10 +18,10 @@
 ### 프로젝트 빌드
 ```bash
 # 프로젝트 파일 생성 (.sln 파일이 없거나 오래된 경우)
-# MYP.uproject 우클릭 → "Generate Visual Studio project files"
+# {ProjectName}.uproject 우클릭 → "Generate Visual Studio project files"
 
 # Rider에서 빌드
-# MYP.sln 열기 → Build → Build Solution (Ctrl+Shift+B)
+# {ProjectName}.sln 열기 → Build → Build Solution (Ctrl+Shift+B)
 # Configuration: Development Editor
 # Platform: Win64
 ```
@@ -29,10 +29,10 @@
 ### 프로젝트 실행
 ```bash
 # Unreal Editor에서 실행
-# MYP.uproject 더블클릭
+# {ProjectName}.uproject 더블클릭
 
 # 또는 Rider에서 빌드 후 실행
-# MYP를 시작 프로젝트로 설정 → Debug → Start Without Debugging (Ctrl+F5)
+# 프로젝트를 시작 프로젝트로 설정 → Debug → Start Without Debugging (Ctrl+F5)
 ```
 
 ### 일반적인 개발 작업
@@ -44,11 +44,15 @@
 
 ### 모듈 의존성
 
-**필수 모듈** (MYP.Build.cs):
+**일반적인 필수 모듈** (`{ProjectName}.Build.cs`):
 ```
-Core, CoreUObject, Engine, InputCore, EnhancedInput,
+Core, CoreUObject, Engine, InputCore, EnhancedInput
+```
+
+**선택적 모듈 (필요에 따라)**:
+```
 AIModule, StateTreeModule, GameplayStateTreeModule,
-UMG, Slate
+UMG, Slate, SlateCore
 ```
 
 **Include 경로 구조**:
@@ -56,9 +60,11 @@ UMG, Slate
 
 ### 로깅 시스템
 
-**중앙 로그 카테고리**: `MYPLOG` (`MYP.h`에 선언)
+프로젝트에서 커스텀 로그 카테고리와 편의 매크로를 사용하는 경우:
 
-**편의 매크로**:
+**중앙 로그 카테고리**: 프로젝트의 메인 헤더 파일 (`{ProjectName}.h`)에 선언
+
+**편의 매크로 예시**:
 ```cpp
 SHOWLOG(Format, ...)     // 파일:라인:함수 포함 Info 레벨
 SHOWLOGF(Format, ...)    // 포맷 인자 포함 Info
@@ -66,7 +72,7 @@ SHOWWARN(Format, ...)    // Warning 레벨
 SHOWERROR(Format, ...)   // Error 레벨
 ```
 
-**사용법**: 일관성을 위해 `UE_LOG` 대신 이 매크로들을 선호—자동으로 소스 위치 포함.
+**사용법**: 프로젝트에 정의된 로깅 매크로가 있다면 일관성을 위해 `UE_LOG` 대신 해당 매크로를 선호합니다.
 
 ## 개발 가이드라인
 
@@ -85,16 +91,22 @@ SHOWERROR(Format, ...)   // Error 레벨
 - `master`: 메인 안정 브랜치 (PR용)
 - `Dev`: 활성 개발 브랜치
 
-**커밋 규칙**:
-- 기존 스타일 따르기 (`git log --oneline -10` 확인)
-- 접두사 사용: `[CONFIG]`, `[DOCS]`, `[FIX]`, `[WIP]`, `[FEAT]`, 등
+## 커밋 가이드라인
+
+**형식**: `[PREFIX] 한국어 설명 한 줄`
+
+**접두사**:
+- `[FEAT]` - 완성된 새 기능 (게임 플레이 흐름 통합)
+- `[WIP]` - 구현 중인 기능 (빌드 가능 여부 무관)
+- `[DOCS]` - 문서만 수정 (코드 변경 없음)
+- `[FIX]` - 기존 `[FEAT]` 기능 수정/보완
 
 ## 주요 파일 레퍼런스
 
 | 파일 | 목적 |
 |------|---------|
-| `MYP.Build.cs` | 모듈 의존성 및 include 경로 |
-| `MYP.h` | 로그 카테고리 정의 및 편의 매크로 |
+| `Source/{ProjectName}/{ProjectName}.Build.cs` | 모듈 의존성 및 include 경로 |
+| `Source/{ProjectName}/{ProjectName}.h` | 로그 카테고리 정의 및 편의 매크로 (선택) |
 | `Config/DefaultEngine.ini` | 엔진 설정 (렌더러, 입력, 맵) |
 | `Config/DefaultInput.ini` | 입력 액션 매핑 |
 
