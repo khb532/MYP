@@ -1,1063 +1,1016 @@
-소켓(Socket) 완전 가이드
-1. 소켓의 정의와 역사
-1.1 정의
-**소켓(Socket)**은 네트워크 상에서 프로세스 간 통신(IPC, Inter-Process Communication)을 가능하게 하는 통신 종단점(endpoint)이다. 소켓은 응용 프로그램과 전송 계층(Transport Layer) 사이의 인터페이스 역할을 하며, BSD(Berkeley Software Distribution) 소켓 API로 처음 표준화되었다.
-1.2 역사적 배경
+# 소켓(Socket) 완전 가이드
 
-1983년: 4.2BSD Unix에서 처음 도입
-개발자: Bill Joy와 UC Berkeley 연구팀
-목적: TCP/IP 프로토콜을 사용하기 위한 표준 API 제공
-현재: POSIX 표준의 일부로 모든 주요 운영체제에서 지원
+## 1. 소켓의 정의와 역사
 
-1.3 소켓의 필요성
+### 1.1 소켓이란 무엇인가?
 
-네트워크 하드웨어의 복잡성 은닉
-다양한 프로토콜에 대한 통일된 인터페이스 제공
-운영체제 수준의 자원 관리 및 보안 제공
-이식성(portability) 향상
+컴퓨터를 두 개 연결하려면 어떻게 할까? 케이블을 꽂는다. 하지만 소프트웨어적으로는 어떻게 한 프로그램이 다른 프로그램과 대화할까?
 
+**소켓(Socket)**이 그 답이다. 소켓은 **네트워크 통신을 위한 통로**라고 생각하면 된다. 마치 현실에서 "전화기"가 사람 간의 음성 통신을 가능하게 하듯이, 소켓은 프로그램 간의 데이터 통신을 가능하게 한다.
 
-2. 소켓의 종류
-2.1 도메인(Domain)별 분류
-2.1.1 AF_INET (IPv4)
-```c
-struct sockaddr_in {
-    sa_family_t    sin_family;  // AF_INET
-    in_port_t      sin_port;    // 포트 번호
-    struct in_addr sin_addr;    // IPv4 주소
-    char           sin_zero[8]; // 패딩
-};
-```
-2.1.2 AF_INET6 (IPv6)
-```c
-struct sockaddr_in6 {
-    sa_family_t     sin6_family;   // AF_INET6
-    in_port_t       sin6_port;     // 포트 번호
-    uint32_t        sin6_flowinfo; // 플로우 정보
-    struct in6_addr sin6_addr;     // IPv6 주소
-    uint32_t        sin6_scope_id; // 스코프 ID
-};
-```
-2.1.3 AF_UNIX (Unix Domain Socket)
+더 정확히 말하면, 소켓은 운영체제가 제공하는 **통신 종단점(endpoint)**이다. 게임 클라이언트와 게임 서버가 데이터를 주고받으려면 양쪽 모두 소켓을 열어야 하고, 그 소켓을 통해 통신한다.
 
-같은 호스트 내 프로세스 간 통신
-네트워크 스택을 거치지 않아 매우 빠름
-파일 시스템 경로를 주소로 사용
+### 1.2 역사적 배경
 
-```c
-struct sockaddr_un {
-    sa_family_t sun_family;  // AF_UNIX
-    char        sun_path[];  // 경로명
-};
-```
+흥미롭게도, 소켓 개념은 1983년 UC Berkeley의 Bill Joy가 처음 만들었다. 당시 인터넷은 지금처럼 대중화되지 않았지만, 대학들이 TCP/IP 프로토콜을 사용해서 통신하기 시작했다.
 
-### 2.2 타입(Type)별 분류
+"그런데 프로그래머들이 매번 TCP/IP 내부 구조를 다루기는 너무 복잡하다. 쉬운 인터페이스가 필요하지 않을까?"
 
-#### 2.2.1 SOCK_STREAM (스트림 소켓)
-**특징:**
-- 연결 지향적(Connection-oriented)
-- 신뢰성 있는 양방향 바이트 스트림
-- 순서 보장(in-order delivery)
-- 오류 검출 및 재전송
-- 흐름 제어(flow control)
-- 프로토콜: TCP
+이런 고민 끝에 **BSD 소켓(Berkeley Software Distribution Socket)**이 탄생했다. 이것이 정말 좋은 설계였는지, 40년이 지난 지금도 거의 모든 운영체제(Windows, Linux, macOS)가 같은 방식으로 소켓을 제공하고 있다.
+
+### 1.3 왜 소켓이 필요한가?
+
+네트워크 통신이 없던 시절에는 프로그램이 같은 컴퓨터 내에서만 돌아갔다. 하지만 점점 프로그램들이 다른 컴퓨터의 데이터가 필요해지기 시작했다:
+
+- 게임 서버에서 플레이어 데이터를 받아야 함
+- 웹 브라우저가 웹 서버에 웹 페이지를 요청해야 함
+- 모바일 앱이 클라우드 서버와 동기화해야 함
+
+**그런데 문제가 있다.** 네트워크 하드웨어는 복잡하고, 프로토콜도 많다 (TCP, UDP, IP 등). 매 번 프로그래머가 이 모든 것을 직접 다루기는 불가능하다.
+
+**해결책이 바로 소켓이다.** 소켓이라는 **추상화된 인터페이스**를 사용하면, 복잡한 네트워크 통신의 세부사항은 운영체제가 담당하고, 프로그래머는 간단한 함수 몇 개만 호출하면 된다.
+
+---
+
+## 2. 소켓의 종류
+
+소켓을 만들 때 선택해야 할 것이 두 가지 있다:
+
+1. **어디와 통신할 것인가?** (도메인)
+2. **어떤 방식으로 통신할 것인가?** (타입)
+
+예를 들어, 게임에서 온라인 서버와 통신한다면:
+- 도메인: 인터넷을 통해 통신 (AF_INET)
+- 타입: 신뢰할 수 있는 연결 기반 통신 (SOCK_STREAM)
+
+각각을 살펴보자.
+
+### 2.1 도메인(Domain)별 분류: "누구와 통신할 건가?"
+
+도메인이란 **어떤 네트워크를 사용해서 통신할 것인가**를 정의한다.
+
+#### 2.1.1 AF_INET (IPv4) - 인터넷 통신의 표준
+
+**상황:** 게임 서버가 다른 나라의 클라이언트와 통신하려고 한다면?
+
+이 경우 인터넷을 통해 통신해야 한다. 인터넷에서는 각 컴퓨터를 구분하기 위해 **IP 주소**를 사용한다.
+
+- IP 주소는 32비트로, 네 개의 숫자로 표현된다 (예: 192.168.1.1)
+- 각 숫자는 0~255 범위를 가진다
+- 전 세계 43억 개 정도의 주소를 가질 수 있다
+
+**특징:** 가장 기본적이고 널리 사용된다. 대부분의 웹, 게임, 스트리밍이 이것을 사용한다.
+
+#### 2.1.2 AF_INET6 (IPv6) - 미래의 인터넷 통신
+
+**상황:** 하지만 43억 개의 주소로는 부족해졌다. 스마트폰, IoT 기기, 그리고 미래의 수십억 개 장치들이 모두 IP 주소가 필요하기 때문이다.
+
+그래서 만들어진 것이 **IPv6**이다.
+
+- IP 주소가 128비트로 훨씬 크다 (예: 2001:db8::1)
+- 사실상 무한에 가까운 개수의 주소를 지원한다
+- 아직 완전히 대체되지는 않았지만, 점차 보급되고 있다
+
+**특징:** 미래를 대비하는 선택지. 새로운 서비스를 만든다면 IPv6도 지원하는 것이 좋다.
+
+#### 2.1.3 AF_UNIX (Unix Domain Socket) - 같은 컴퓨터 내 통신
+
+**상황:** 게임 서버가 같은 컴퓨터에서 실행 중인 데이터베이스와 통신하려고 한다면?
+
+같은 컴퓨터 내에서는 굳이 TCP/IP 네트워크 스택을 거칠 필요가 없다. 더 간단하고 빠른 방법이 있다:
+
+**AF_UNIX 소켓**은 인터넷을 사용하지 않고, **파일 시스템 경로**를 주소로 사용한다.
+
+- 예: `/tmp/game_server.sock` 이런 식의 파일 경로를 "주소"로 사용
+- 같은 호스트 내에서만 통신 가능
+- TCP/IP보다 약 2배 빠르다 (네트워크 스택을 거치지 않으므로)
+
+**특징:** 마이크로서비스 아키텍처에서 같은 서버의 여러 프로세스가 통신할 때 유용하다.
+
+---
+
+### 2.2 타입(Type)별 분류: "어떤 방식으로 통신할 건가?"
+
+이제 **어떤 방식으로** 데이터를 보낼 것인가를 정해야 한다. 이것이 타입(Type)이다.
+
+#### 2.2.1 SOCK_STREAM (TCP) - 신뢰할 수 있는 연결
+
+**상황 1 - 파일 다운로드:**
+A가 B에게 100MB의 파일을 보낸다. 도중에 1MB가 손실되면?
+→ "전체 파일이 손상되었다! 다시 받아야 한다!"
+
+**상황 2 - 게임 플레이어의 위치 정보:**
+플레이어가 "점프" 명령을 서버로 보낸다. 중간에 손실되면?
+→ "플레이어가 점프하지 않았는데 표시되지 않네?"
+
+이런 상황들에서는 **모든 데이터가 정확하게, 순서대로 도착해야 한다.**
+
+**SOCK_STREAM (TCP 프로토콜)의 특징:**
+
+- **연결 지향적**: 데이터를 보내기 전에 반드시 먼저 "연결"을 맺어야 한다
+- **신뢰성**: 보낸 데이터가 반드시 도착한다. 손실되면 자동으로 재전송
+- **순서 보장**: 먼저 보낸 데이터가 먼저 도착한다
+- **흐름 제어**: 수신자가 받을 수 있는 속도가 느리면 송신자가 속도를 늦춘다
+- **오버헤드**: 신뢰성을 보장하려다 보니 약간의 성능 저하가 있다
 
 **사용 사례:**
-- HTTP, HTTPS
-- FTP, SSH
-- SMTP, POP3
-- 데이터 무결성이 중요한 모든 응용
+- HTTP/HTTPS (웹 페이지 요청)
+- FTP (파일 전송)
+- SSH (원격 접속)
+- 이메일 (SMTP, POP3)
 
-#### 2.2.2 SOCK_DGRAM (데이터그램 소켓)
-**특징:**
-- 비연결형(Connectionless)
-- 메시지 단위 전송
-- 순서 보장 없음
-- 신뢰성 없음 (패킷 손실 가능)
-- 오버헤드 낮음
-- 프로토콜: UDP
+#### 2.2.2 SOCK_DGRAM (UDP) - 빠르지만 신뢰성 없는 통신
+
+**상황 1 - 실시간 게임:**
+플레이어가 움직인다. 1000분의 1초 마다 위치 정보를 보낸다.
+→ 만약 몇 개 패킷이 손실되어도 다음 정보가 곧 온다
+→ "완벽할 필요 없다. 빨라야 한다!"
+
+**상황 2 - 유튜브 스트리밍:**
+영상 프레임을 실시간으로 본다. 모든 프레임이 완벽할 필요가 있나?
+→ 가끔 끊기거나 뚝뚝 끊기는 게 정상
+→ 대신 지연 없이 빨리 받아야 한다
+
+이런 상황들에서는 **속도가 신뢰성보다 중요하다.**
+
+**SOCK_DGRAM (UDP 프로토콜)의 특징:**
+
+- **비연결형**: 연결 과정이 없다. 그냥 데이터를 보낸다
+- **신뢰성 없음**: 보낸 데이터가 도착하지 않을 수 있다
+- **순서 보장 없음**: 먼저 보낸 데이터가 나중에 도착할 수 있다
+- **빠름**: 연결 과정이 없고 재전송도 안 하니까 매우 빠르다
+- **메시지 단위**: 데이터가 독립적인 메시지로 전송된다
 
 **사용 사례:**
-- DNS 쿼리
-- 실시간 스트리밍 (비디오, 음성)
-- 온라인 게임
-- IoT 센서 데이터
+- DNS 조회 (빠르고 단순한 요청/응답)
+- 실시간 게임 (플레이어 위치 업데이트)
+- 음성/영상 스트리밍 (VoIP, YouTube)
+- IoT 센서 데이터 수집
 
-#### 2.2.3 SOCK_RAW (Raw 소켓)
-**특징:**
-- IP 헤더에 직접 접근
-- ICMP, IGMP 등 저수준 프로토콜 구현 가능
-- 관리자 권한 필요
-- 패킷 스니핑, 네트워크 진단 도구 개발
+**TCP vs UDP 선택 기준:**
 
-**사용 사례:**
-- ping 유틸리티
-- traceroute
-- 네트워크 모니터링 도구
-- 커스텀 프로토콜 구현
+데이터의 "모든 것"이 도착해야 한다면 → TCP (SOCK_STREAM)
+속도가 중요하고 약간의 손실은 괜찮다면 → UDP (SOCK_DGRAM)
 
-#### 2.2.4 SOCK_SEQPACKET
-- 순서가 보장되는 메시지 기반 연결
-- SCTP(Stream Control Transmission Protocol)에서 사용
 
 ---
 
 ## 3. TCP 소켓의 동작 원리
 
-### 3.1 서버-클라이언트 모델
+### 3.1 서버와 클라이언트의 역할 구분
+
+TCP 소켓 통신은 두 가지 **서로 다른 역할**로 나뉩니다.
+
+**서버의 역할**: "내가 여기 있으니 누군가 연락을 기다릴게"
+- 특정 주소(`bind()`)와 포트에서 대기 (`listen()`)
+- 들어오는 연결을 수락 (`accept()`)
+- 여러 클라이언트를 동시에 처리할 수 있음
+
+**클라이언트의 역할**: "나는 저 서버에 연결하고 싶어"
+- 특정 서버의 주소와 포트로 연결 요청 (`connect()`)
+- 서버와 데이터 주고받음
+- 완료 후 연결 해제
+
+이렇게 역할을 나누는 이유는 뭘까요? 게임 서버를 예시로 생각해봅시다.
+
+**상황**: 플레이어 100명이 게임 서버에 접속하고 싶습니다.
+- 만약 역할 구분이 없다면? "누가 누구를 기다려야 하지?"라는 혼란이 생깁니다.
+- 역할을 나누면? 게임 서버는 계속 대기하고, 플레이어들은 차례대로 연결합니다.
+
+### 3.2 TCP 연결 과정: 3-Way Handshake
+
+이제 실제로 **클라이언트가 서버에 연결하는 과정**을 자세히 살펴봅시다.
+
+처음에 클라이언트가 `connect()`를 호출하면, TCP는 내부적으로 **3번의 메시지 교환**을 합니다. 이를 "3-way handshake"라고 부릅니다.
+
 ```
-서버                           클라이언트
-socket()                       socket()
-  ↓                              ↓
-bind()                         
-  ↓
-listen()
-  ↓
-accept() ←─────────────────── connect()
-  ↓         [3-way handshake]    ↓
-  ↓                              ↓
-read() ←───────────────────── write()
-  ↓                              ↓
-write() ─────────────────────→ read()
-  ↓                              ↓
-close() ←─────────────────────→ close()
-        [4-way handshake]
-3.2 주요 시스템 콜 상세 설명
-3.2.1 socket()
-cint socket(int domain, int type, int protocol);
-매개변수:
-
-domain: 주소 체계 (AF_INET, AF_INET6, AF_UNIX)
-type: 소켓 타입 (SOCK_STREAM, SOCK_DGRAM, SOCK_RAW)
-protocol: 프로토콜 (보통 0으로 자동 선택)
-
-반환값:
-
-성공: 소켓 디스크립터 (양수)
-실패: -1 (errno 설정됨)
-
-내부 동작:
-
-커널에 소켓 데이터 구조 생성
-파일 디스크립터 테이블에 항목 추가
-초기 상태는 CLOSED
-
-3.2.2 bind()
-cint bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-목적:
-
-소켓에 로컬 주소(IP + 포트) 할당
-서버에서 필수, 클라이언트는 선택적
-
-Well-known Ports:
-
-0-1023: 시스템 포트 (root 권한 필요)
-1024-49151: 등록된 포트
-49152-65535: 동적/임시 포트
-
-특수 주소:
-
-INADDR_ANY (0.0.0.0): 모든 네트워크 인터페이스
-INADDR_LOOPBACK (127.0.0.1): 루프백
-특정 IP: 특정 인터페이스만 바인딩
-
-3.2.3 listen()
-cint listen(int sockfd, int backlog);
-매개변수:
-
-backlog: 대기 큐의 최대 크기
-
-완전히 연결된 소켓들의 큐
-SYN_RCVD 상태 소켓들의 큐
-
-
-
-상태 전환:
-
-CLOSED → LISTEN
-
-큐 관리:
-
-클라이언트 연결 요청이 들어오면 큐에 저장
-accept()가 호출될 때까지 대기
-큐가 가득 차면 새 연결 거부
-
-3.2.4 accept()
-cint accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
-동작:
-
-연결 큐에서 하나의 연결 요청 꺼냄
-새로운 소켓 디스크립터 생성 (connected socket)
-클라이언트 주소 정보 반환
-원래 소켓(listening socket)은 계속 listen 상태 유지
-
-블로킹 vs 논블로킹:
-
-블로킹 모드: 연결 요청이 올 때까지 대기
-논블로킹 모드: 즉시 반환 (EWOULDBLOCK)
-
-3.2.5 connect()
-cint connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-동작:
-
-TCP 3-way handshake 시작
-
-SYN 전송
-SYN-ACK 수신 대기
-ACK 전송
-
-
-연결 성공 시 ESTABLISHED 상태로 전환
-로컬 포트가 바인딩되지 않았으면 자동 할당
-
-타임아웃:
-
-기본적으로 약 75초 (시스템 의존적)
-SO_SNDTIMEO 옵션으로 조정 가능
-
-3.2.6 send() / recv()
-cssize_t send(int sockfd, const void *buf, size_t len, int flags);
-ssize_t recv(int sockfd, void *buf, size_t len, int flags);
-flags 옵션:
-
-MSG_DONTWAIT: 논블로킹 모드
-MSG_PEEK: 데이터를 읽되 버퍼에서 제거하지 않음
-MSG_WAITALL: 요청한 바이트 수만큼 다 받을 때까지 대기
-MSG_OOB: Out-of-band 데이터 (긴급 데이터)
-
-부분 전송/수신:
-
-TCP는 스트림이므로 요청한 크기만큼 전송/수신 보장 안 됨
-반환값 확인하여 루프 처리 필요
-
-c// 완전 전송 예제
-ssize_t send_all(int sockfd, const void *buf, size_t len) {
-    size_t total_sent = 0;
-    while (total_sent < len) {
-        ssize_t sent = send(sockfd, buf + total_sent, 
-                           len - total_sent, 0);
-        if (sent < 0) return -1;
-        total_sent += sent;
-    }
-    return total_sent;
-}
-3.2.7 close() / shutdown()
-cint close(int sockfd);
-int shutdown(int sockfd, int how);
-close():
-
-소켓 디스크립터 참조 카운트 감소
-0이 되면 연결 종료 (4-way handshake)
-양방향 모두 종료
-
-shutdown():
-
-SHUT_RD (0): 수신 종료
-SHUT_WR (1): 송신 종료 (half-close)
-SHUT_RDWR (2): 양방향 종료
-
-Half-close 패턴:
-cshutdown(sockfd, SHUT_WR);  // 더 이상 보낼 데이터 없음
-// 하지만 여전히 받을 수 있음
-while (recv(sockfd, buf, sizeof(buf), 0) > 0) {
-    // 처리
-}
-close(sockfd);
-
-4. UDP 소켓의 동작 원리
-4.1 특징
-
-연결 설정/해제 과정 없음
-connect(), accept(), listen() 불필요
-sendto(), recvfrom() 사용
-
-4.2 주요 함수
-cssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
-               const struct sockaddr *dest_addr, socklen_t addrlen);
-
-ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
-                 struct sockaddr *src_addr, socklen_t *addrlen);
+클라이언트                                     서버
+   |                                            |
+   | 1. SYN 전송                                |
+   |   ("안녕, 나랑 연결하고 싶어")            |
+   |────────────────────────────────────────>|
+   |                                            |
+   |                        2. SYN+ACK 수신     |
+   |                   ("좋아, 난 준비됐어")    |
+   |<────────────────────────────────────────|
+   |                                            |
+   | 3. ACK 전송                                |
+   |   ("고마워, 나도 준비됐어")              |
+   |────────────────────────────────────────>|
+   |                                            |
+   |========== 연결 완료 (ESTABLISHED) =========|
+   |                                            |
 ```
 
-### 4.3 서버-클라이언트 구조
+**각 단계의 의미:**
+
+1. **SYN (동기화 신호)**: 클라이언트가 서버에 "나와 통신하려고 합니다"라는 신호를 보냅니다. 이때 클라이언트의 초기 시퀀스 번호를 함께 전송합니다.
+
+2. **SYN+ACK (확인 응답)**: 서버가 "나는 너의 신호를 받았고, 나도 준비됐다"는 응답을 보냅니다. 서버도 자신의 초기 시퀀스 번호를 보냅니다.
+
+3. **ACK (확인)**: 클라이언트가 "너의 응답을 받았다"는 최종 확인을 보냅니다.
+
+**왜 3번이 필요할까요?**
+- 첫 번째 메시지로 클라이언트가 존재함을 증명
+- 두 번째 메시지로 서버가 존재함을 증명
+- 세 번째 메시지로 양쪽 모두 "서로 대화할 준비가 됐다"는 것을 확인
+
+이제 양쪽 모두 **시퀀스 번호**를 알았으므로, 이 번호를 사용해서 데이터 전송 시 순서를 보장할 수 있습니다.
+
+### 3.3 데이터 송수신
+
+연결이 완료된 후, 클라이언트와 서버는 자유롭게 데이터를 주고받습니다.
+
+```cpp
+// 서버 코드 (단순화)
+int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+bind(server_fd, &server_addr, sizeof(server_addr));
+listen(server_fd, 5);
+
+int client_fd = accept(server_fd, &client_addr, &addr_len);
+// 이 지점에서 3-way handshake 완료 ✓
+
+char buffer[1024];
+read(client_fd, buffer, sizeof(buffer));  // 클라이언트 메시지 수신
+write(client_fd, "Hello", 5);              // 응답 전송
 ```
-서버                           클라이언트
-socket()                       socket()
-  ↓                              ↓
-bind()                         bind() (선택)
-  ↓                              ↓
-recvfrom() ←────────────────── sendto()
-  ↓                              ↓
-sendto() ──────────────────────→ recvfrom()
-  ↓                              ↓
-close()                        close()
-4.4 Connected UDP 소켓
-c// UDP 소켓도 connect() 가능
-connect(sockfd, &server_addr, sizeof(server_addr));
-// 이후 send()/recv() 사용 가능
-send(sockfd, buf, len, 0);
-recv(sockfd, buf, len, 0);
-장점:
 
-커널이 주소를 기억하여 매번 지정할 필요 없음
-ICMP 에러 메시지 수신 가능
-성능 향상 (주소 검증 한 번만)
+```cpp
+// 클라이언트 코드 (단순화)
+int sock = socket(AF_INET, SOCK_STREAM, 0);
+connect(sock, &server_addr, sizeof(server_addr));
+// 이 지점에서 3-way handshake 완료 ✓
 
+write(sock, "Hi Server", 9);  // 메시지 전송
+char buffer[1024];
+read(sock, buffer, sizeof(buffer));  // 응답 수신
+```
 
-5. 소켓 옵션
-5.1 setsockopt() / getsockopt()
-cint setsockopt(int sockfd, int level, int optname,
-               const void *optval, socklen_t optlen);
-int getsockopt(int sockfd, int level, int optname,
-               void *optval, socklen_t *optlen);
-5.2 주요 옵션
-5.2.1 SOL_SOCKET 레벨
-SO_REUSEADDR
-cint optval = 1;
-setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+### 3.4 연결 해제: 4-Way Handshake
 
-TIME_WAIT 상태의 주소 재사용 허용
-서버 재시작 시 "Address already in use" 에러 방지
+이제 통신이 끝났으므로 연결을 끊어야 합니다. 재밌게도, **연결을 끊는 것도 "악수"**처럼 4번의 메시지 교환이 필요합니다.
 
-SO_REUSEPORT
+```
+클라이언트                                     서버
+   |                                            |
+   | 1. FIN 전송 (더 이상 보낼 게 없어)        |
+   |────────────────────────────────────────>|
+   |                                            |
+   |                        2. ACK 수신        |
+   |                    ("알겠어")             |
+   |<────────────────────────────────────────|
+   |                                            |
+   |                     3. FIN 수신            |
+   |                   (서버도 준비됐어)       |
+   |<────────────────────────────────────────|
+   |                                            |
+   | 4. ACK 전송 (최종 확인)                   |
+   |────────────────────────────────────────>|
+   |                                            |
+   |═════════ 연결 완전 해제 ═════════|
+   |                                            |
+```
 
-여러 소켓이 같은 포트에 바인딩 가능
-로드 밸런싱 (커널이 자동 분배)
+**왜 4번이 필요할까요?**
 
-SO_KEEPALIVE
+클라이언트가 `close()`를 호출하면, "더 이상 보낼 데이터가 없다"는 뜻입니다. 하지만 서버가 아직 클라이언트에게 전송할 데이터가 있을 수 있으니까요.
 
-TCP 연결 유지 확인 (keepalive probe)
-죽은 연결 감지
+1. 클라이언트가 "나는 끝났어" (FIN) 신호를 보냅니다.
+2. 서버가 "알았어, 너의 신호를 받았어" (ACK)라고 응답합니다.
+3. 서버도 준비가 되면 "나도 끝났어" (FIN)를 보냅니다.
+4. 클라이언트가 "좋아, 이제 정말 끝이다" (ACK)라고 최종 확인합니다.
 
-SO_RCVBUF / SO_SNDBUF
+### 3.5 TIME_WAIT 상태와 SO_REUSEADDR
 
-수신/송신 버퍼 크기 조정
+**문제 상황**: 서버가 크래시되어 재시작해야 합니다. 얼른 같은 포트번호로 다시 서버를 시작하면...
 
-cint bufsize = 65536;
-setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
-SO_RCVTIMEO / SO_SNDTIMEO
+```
+ERROR: Address already in use!
+```
 
-수신/송신 타임아웃 설정
+뭐라고? 아까 종료했는데 포트가 이미 사용 중이라니요?
 
-cstruct timeval tv;
-tv.tv_sec = 5;
-tv.tv_usec = 0;
-setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-SO_LINGER
-cstruct linger lng;
-lng.l_onoff = 1;
-lng.l_linger = 10;  // 10초 대기
-setsockopt(sockfd, SOL_SOCKET, SO_LINGER, &lng, sizeof(lng));
+**원인**: TCP의 **TIME_WAIT** 상태입니다.
 
-close() 시 동작 제어
-l_linger > 0: 데이터 전송 대기
-l_linger = 0: 즉시 RST 전송 (abortive close)
+연결이 완전히 종료되어도, 운영체제는 바로 그 포트를 재사용하도록 허용하지 않습니다. 왜냐하면, 지연된 패킷이 떠돌아다닐 수 있기 때문입니다.
 
-5.2.2 IPPROTO_TCP 레벨
-TCP_NODELAY
-cint flag = 1;
-setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+예를 들어:
+1. 이전 연결에서 보낸 패킷이 네트워크 어딘가에 지연되어 있음
+2. 같은 포트번호로 새 서버를 시작
+3. 그 지연된 패킷이 도착하면? → 혼란!
 
-Nagle 알고리즘 비활성화
-작은 패킷 즉시 전송 (지연 감소)
-실시간 응용에 유용
+그래서 TCP는 연결 해제 후 약 2분(TCP 정의상) 동안 그 포트를 "예약"해둡니다. 이것이 **TIME_WAIT** 상태입니다.
 
-TCP_CORK (Linux)
+**해결책**: `SO_REUSEADDR` 옵션
 
-패킷 모아서 한 번에 전송
-HTTP 헤더+본문을 하나의 패킷으로
+```cpp
+int reuse = 1;
+setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR,
+           (const char*)&reuse, sizeof(reuse));
+```
 
-TCP_KEEPIDLE / TCP_KEEPINTVL / TCP_KEEPCNT
+이 옵션을 설정하면, 개발 중에 서버를 빠르게 재시작할 수 있습니다. ("이전 연결이 아직 정리되지 않았지만, 내가 이거 무시할게"라는 뜻)
 
-Keepalive 세부 설정
+## 4. UDP 소켓의 동작 원리
 
-5.2.3 IPPROTO_IP 레벨
-IP_TTL
+### 4.1 TCP는 너무 무거워: UDP의 등장
 
-Time-To-Live 값 설정
+앞서 TCP를 배웠습니다. 3-way handshake, 데이터 신뢰성 검증, 순서 보장... 모든 것이 안전합니다. 하지만 **항상 안전한 것이 필요할까요?**
 
-IP_TOS
+**실제 상황 1**: 온라인 게임에서 플레이어의 위치 업데이트를 서버에 전송합니다.
+- TCP를 사용: "플레이어가 10,20,30 좌표에 있어. 이건 정말 확실해야 해."
+- 실제 필요: "대략 플레이어가 저 근처에 있는 것 같아. 몇 프레임 뒤에 올 다음 위치 업데이트가 더 정확할 거야."
+- TCP의 오버헤드(3-way handshake, 재전송 등)는 낭비입니다.
 
-Type of Service (QoS)
+**실제 상황 2**: 라이브 스트리밍 서비스
+- 영상 프레임이 1-2초 지연되는 건 괜찮습니다.
+- 하지만 모든 프레임의 신뢰성을 검증하느라 더 지연되는 건 싫습니다.
+- 몇 개 프레임이 손실되도 사람 눈에는 티가 안 납니다.
 
-IP_MULTICAST_TTL / IP_ADD_MEMBERSHIP
+이럴 때는 **빠르고 간단한 통신**이 필요합니다. 바로 **UDP (User Datagram Protocol)**입니다.
 
-멀티캐스트 관련 옵션
+### 4.2 UDP의 특징
 
+TCP와 달리 UDP는:
 
-6. 논블로킹 소켓과 I/O 멀티플렉싱
-6.1 블로킹 vs 논블로킹
-블로킹 소켓:
+1. **비연결형 (Connectionless)**
+   - 연결 과정이 없습니다. 3-way handshake? 필요 없음.
+   - 그냥 데이터를 보냅니다. "누가 받으려나?"라는 기대 없이.
 
-시스템 콜이 완료될 때까지 프로세스 대기
-단순하지만 동시성 처리 어려움
+2. **신뢰성 없음**
+   - 패킷이 도착했는지 확인하지 않습니다.
+   - 패킷이 손실되어도 신경 쓰지 않습니다.
+   - 패킷이 중간에 변조되어도 모릅니다.
 
-논블로킹 소켓:
-cint flags = fcntl(sockfd, F_GETFL, 0);
-fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
+3. **순서 보장 안 함**
+   - 순서대로 보낸 데이터가 순서대로 올 거라는 보장이 없습니다.
+   - 패킷 1, 패킷 2, 패킷 3을 보냈는데, 2, 3, 1 순서로 도착할 수도 있습니다.
 
-즉시 반환 (EWOULDBLOCK / EAGAIN)
-주기적으로 폴링 필요 (CPU 낭비)
+4. **빠름**
+   - 위의 모든 검증 과정이 없으므로 **매우 빠릅니다.**
 
-6.2 select()
-cint select(int nfds, fd_set *readfds, fd_set *writefds,
-           fd_set *exceptfds, struct timeval *timeout);
-사용 예:
-cfd_set readfds;
+### 4.3 UDP의 동작
+
+```
+서버                                  클라이언트
+|                                      |
+| socket() 생성                        |
+| bind() 포트에 바인드                 |
+|                                      |
+| recvfrom() 대기                      | socket() 생성
+|                                      |
+|                     sendto() 데이터 발송
+| <────────────────────────────────────
+|
+| 데이터 수신 ✓
+|
+| sendto() 응답 데이터
+|─────────────────────────────────────> recvfrom() 수신
+|
+| close() 종료
+|                                      | close() 종료
+```
+
+TCP와 가장 큰 차이:
+- **연결 과정이 없음**: 바로 데이터 송수신
+- **socket → bind → recvfrom()** : TCP의 listen/accept 대신 바로 recvfrom()으로 대기
+- **sendto/recvfrom**: 각 메시지마다 "어디서 왔는지" "어디로 갈 건지" 명시
+
+### 4.4 실제 코드 예시
+
+```cpp
+// 서버 (UDP)
+int server_fd = socket(AF_INET, SOCK_DGRAM, 0);  // SOCK_STREAM 대신 SOCK_DGRAM
+bind(server_fd, &server_addr, sizeof(server_addr));
+
+struct sockaddr_in client_addr;
+socklen_t client_len = sizeof(client_addr);
+char buffer[1024];
+
+// 클라이언트의 요청을 기다리지만, 연결하지 않음
+ssize_t n = recvfrom(server_fd, buffer, sizeof(buffer), 0,
+                     (struct sockaddr*)&client_addr, &client_len);
+
+// 그 클라이언트에게 응답
+sendto(server_fd, "OK", 2, 0,
+       (struct sockaddr*)&client_addr, client_len);
+```
+
+```cpp
+// 클라이언트 (UDP)
+int sock = socket(AF_INET, SOCK_DGRAM, 0);  // 연결하지 않음!
+
+// 그냥 서버에 데이터를 보냄
+sendto(sock, "Hello", 5, 0,
+       (struct sockaddr*)&server_addr, sizeof(server_addr));
+
+// 응답 대기
+ssize_t n = recvfrom(sock, buffer, sizeof(buffer), 0, NULL, NULL);
+```
+
+### 4.5 TCP vs UDP: 선택 기준
+
+| 상황 | 선택할 것 | 이유 |
+|------|---------|------|
+| 파일 다운로드 | TCP | 모든 바이트가 정확해야 함 |
+| 게임 플레이어 위치 | UDP | 최신 위치만 중요함 |
+| 은행 송금 | TCP | 돈이 정확하게 이동해야 함 |
+| 라이브 영상 스트리밍 | UDP | 몇 프레임 손실 허용 |
+| 웹 브라우저 요청 | TCP | HTML, CSS 다 받아야 함 |
+| 온라인 게임 음성 | UDP | 약간의 노이즈는 괜찮음 |
+
+## 5. 소켓 옵션으로 동작 조정하기
+
+### 5.1 소켓 옵션이란?
+
+지금까지 socket을 만들고 연결하는 것을 배웠습니다. 하지만 **그 동작을 미세하게 조정**하고 싶을 때가 있습니다.
+
+예를 들어:
+- "내 데이터는 정말 중요한데, 혹시 연결이 끊겨도 자동으로 재연결해야 해"
+- "타임아웃이 걸려서 무한 대기하는 거 싫어. 1초 후 포기해줄래?"
+- "받는 버퍼가 작은데, 더 크게 해줄 수 있어?"
+
+이런 요청들을 **소켓 옵션**으로 처리합니다. `setsockopt()` 함수를 사용하죠.
+
+### 5.2 자주 사용되는 소켓 옵션
+
+**SO_REUSEADDR: 포트 빨리 재사용하기**
+
+```cpp
+int reuse = 1;
+setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+           (const char*)&reuse, sizeof(reuse));
+bind(sock, &addr, sizeof(addr));
+```
+
+**언제 필요한가?**: 앞서 배운 TIME_WAIT 상태 때문에, 종료한 서버를 바로 재시작할 수 없습니다. 이 옵션을 켜면 더 빨리 포트를 재사용할 수 있습니다.
+
+**SO_KEEPALIVE: 좀비 연결 감지하기**
+
+```cpp
+int keepalive = 1;
+setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE,
+           (const char*)&keepalive, sizeof(keepalive));
+```
+
+**언제 필요한가?**: 클라이언트가 비정상 종료되면, 서버는 여전히 그 연결을 "활성"이라고 생각할 수 있습니다. SO_KEEPALIVE는 주기적으로 "너 살아있어?"라고 물어봅니다.
+
+**SO_RCVTIMEO / SO_SNDTIMEO: 타임아웃 설정하기**
+
+```cpp
 struct timeval tv;
-
-FD_ZERO(&readfds);
-FD_SET(sockfd, &readfds);
-
-tv.tv_sec = 5;
+tv.tv_sec = 5;      // 5초
 tv.tv_usec = 0;
+setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO,
+           (const char*)&tv, sizeof(tv));
+```
 
-int ret = select(sockfd + 1, &readfds, NULL, NULL, &tv);
-if (ret > 0 && FD_ISSET(sockfd, &readfds)) {
-    // 읽을 데이터 있음
+**언제 필요한가?**: 데이터를 받으려고 대기 중인데, 상대방이 영원히 데이터를 안 보낸다면? 무한 대기합니다. 이 옵션으로 "5초 기다렸는데 아무것도 없으면, 포기해"라고 설정할 수 있습니다.
+
+
+## 6. I/O 멀티플렉싱: 여러 클라이언트를 동시에 처리하기
+
+### 6.1 문제: 서버가 100명의 플레이어를 어떻게 처리하나?
+
+지금까지 배운 코드를 보면:
+
+```cpp
+// 서버 코드
+int client_fd = accept(server_fd, &addr, &len);
+char buffer[1024];
+read(client_fd, buffer, 1024);  // 여기서 무한 대기 (데이터 올 때까지)
+write(client_fd, "OK", 2);
+close(client_fd);
+```
+
+**문제**: `read()` 함수는 **블로킹(blocking)** 입니다.
+- 데이터가 올 때까지 기다립니다.
+- 그 동안 다른 클라이언트는 접속할 수 없습니다.
+- 100명 중 1명의 `read()`에 갇혀있으면, 나머지 99명은 대기합니다.
+
+**상황**: 플레이어 1번이 게임을 시작했는데, 데이터를 보내지 않고 있습니다.
+- 서버는 `read()` 함수에 갇혀 있습니다.
+- 플레이어 2, 3, 4, 5... 는 접속하려고 기다리는데, 서버가 응답이 없습니다.
+- 최악의 상황입니다!
+
+### 6.2 해결책 1: 스레드 사용하기
+
+한 가지 해결책은 **각 클라이언트마다 스레드를 만드는 것**입니다.
+
+```cpp
+// 스레드를 사용한 접근
+while(true) {
+    int client_fd = accept(server_fd, &addr, &len);
+
+    // 이 클라이언트를 처리할 새로운 스레드 시작
+    std::thread client_thread([client_fd]() {
+        char buffer[1024];
+        read(client_fd, buffer, 1024);  // 이 스레드에서만 블로킹
+        write(client_fd, "OK", 2);
+        close(client_fd);
+    });
+    client_thread.detach();  // 스레드를 백그라운드에서 실행
 }
-한계:
+```
 
-최대 1024개 디스크립터 (FD_SETSIZE)
-O(n) 시간 복잡도
-fd_set 복사 오버헤드
+**장점**: 각 클라이언트가 독립적으로 처리됩니다.
 
-6.3 poll()
-cint poll(struct pollfd *fds, nfds_t nfds, int timeout);
+**문제**: 100명이 접속하면 100개의 스레드가 생깁니다.
+- 스레드는 메모리를 많이 소비합니다. (각 스레드마다 1-2MB)
+- 100명 × 2MB = 200MB의 메모리만 스레드 관리에 사용됩니다.
+- 1000명? 10000명? 불가능합니다.
 
-struct pollfd {
-    int   fd;        // 파일 디스크립터
-    short events;    // 관심 이벤트
-    short revents;   // 발생한 이벤트
-};
-장점:
+### 6.3 해결책 2: I/O 멀티플렉싱 (Multiplexing)
 
-디스크립터 개수 제한 없음
-events/revents 분리
+더 나은 방법이 있습니다. **여러 소켓을 동시에 "감시"**하는 것입니다.
 
-단점:
+개념: "이 100개의 소켓 중에서, **지금 바로 읽을 수 있는 것**이 뭐가 있나?"라고 물어봅니다.
 
-여전히 O(n)
+```
+시간 T1:  "소켓 1, 5, 23이 읽을 준비됐어요!"
+         → 그 3개만 읽어요.
 
-6.4 epoll() (Linux)
-cint epoll_create1(int flags);
-int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event);
-int epoll_wait(int epfd, struct epoll_event *events,
-               int maxevents, int timeout);
-사용 예:
-cint epfd = epoll_create1(0);
+시간 T2:  "소켓 3, 7, 11, 95가 읽을 준비됐어요!"
+         → 그 4개만 읽어요.
 
+시간 T3:  "아무것도 준비 안 됐어요."
+         → 기다려요.
+```
+
+이렇게 하면:
+- 스레드가 필요 없습니다.
+- 읽을 준비가 된 것만 읽습니다.
+- 1만 개의 연결도 처리 가능합니다!
+
+### 6.4 epoll: 멀티플렉싱의 구현 (Linux)
+
+Linux에서는 `epoll()`이라는 시스템 콜을 사용합니다. 이는 매우 효율적인 멀티플렉싱 방법입니다.
+
+**3가지 함수:**
+
+1. **epoll_create1()**: 감시 시작
+2. **epoll_ctl()**: 감시 대상 추가/제거/수정
+3. **epoll_wait()**: "지금 읽을 준비된 게 뭐가 있나?" 물어보기
+
+**실제 코드:**
+
+```cpp
+// 1단계: 감시 객체 생성
+int epfd = epoll_create1(0);
+
+// 2단계: 클라이언트 소켓을 감시 대상에 추가
 struct epoll_event ev;
-ev.events = EPOLLIN;
-ev.data.fd = sockfd;
-epoll_ctl(epfd, EPOLL_CTL_ADD, sockfd, &ev);
+ev.events = EPOLLIN;  // 읽기 가능 이벤트만 감시
+ev.data.fd = client_fd;
+epoll_ctl(epfd, EPOLL_CTL_ADD, client_fd, &ev);
 
-struct epoll_event events[MAX_EVENTS];
-int nfds = epoll_wait(epfd, events, MAX_EVENTS, -1);
+// 3단계: 이벤트 루프
+struct epoll_event events[MAX_EVENTS];  // 최대 1000개 이벤트 동시 수신
+int nfds = epoll_wait(epfd, events, MAX_EVENTS, -1);  // 준비될 때까지 대기
 
 for (int i = 0; i < nfds; i++) {
     if (events[i].events & EPOLLIN) {
-        // 읽기 가능
+        // 읽기 가능! 이제 read()는 블로킹되지 않습니다.
+        int fd = events[i].data.fd;
+        char buffer[1024];
+        read(fd, buffer, 1024);
     }
 }
 ```
 
-**모드:**
-- **Level-triggered (LT)**: 기본, 조건이 만족되는 한 계속 알림
-- **Edge-triggered (ET)**: 상태 변화 시점에만 한 번 알림
-  - 더 효율적이지만 모든 데이터를 읽어야 함
-  - 논블로킹 소켓 필수
+### 6.5 게임 서버의 메인 루프 (epoll 활용)
 
-**장점:**
-- O(1) 시간 복잡도
-- 수십만 개 연결 처리 가능
-- 고성능 서버에 필수
+실제 게임 서버는 이렇게 작동합니다:
 
-### 6.5 kqueue() (BSD, macOS)
-- epoll과 유사한 메커니즘
-- 더 일반화된 이벤트 알림 시스템
+```cpp
+int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+bind(server_fd, &addr, sizeof(addr));
+listen(server_fd, 5);
 
-### 6.6 IOCP (Windows)
-- I/O Completion Port
-- 완료 기반 모델 (completion-based)
+int epfd = epoll_create1(0);
 
----
+// 서버 소켓(신규 접속 감지용)도 감시 대상에 추가
+struct epoll_event server_ev;
+server_ev.events = EPOLLIN;
+server_ev.data.fd = server_fd;
+epoll_ctl(epfd, EPOLL_CTL_ADD, server_fd, &server_ev);
 
-## 7. 고급 주제
+// 메인 루프 (항상 실행)
+while(true) {
+    struct epoll_event events[100];  // 최대 100개 이벤트 동시 처리
+    int nfds = epoll_wait(epfd, events, 100, -1);
 
-### 7.1 소켓 버퍼 관리
+    for (int i = 0; i < nfds; i++) {
+        if (events[i].data.fd == server_fd) {
+            // 새로운 클라이언트 접속!
+            int client_fd = accept(server_fd, NULL, NULL);
 
-**송신 버퍼 (Send Buffer):**
+            // 이 새 클라이언트도 감시 대상에 추가
+            struct epoll_event ev;
+            ev.events = EPOLLIN;
+            ev.data.fd = client_fd;
+            epoll_ctl(epfd, EPOLL_CTL_ADD, client_fd, &ev);
+
+        } else {
+            // 기존 클라이언트에서 데이터 수신
+            int fd = events[i].data.fd;
+            char buffer[1024];
+            int n = read(fd, buffer, 1024);
+
+            if (n == 0) {
+                // 클라이언트가 연결 종료
+                epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
+                close(fd);
+            } else {
+                // 데이터 처리
+                handleClientMessage(fd, buffer, n);
+            }
+        }
+    }
+}
 ```
-응용 → write() → 커널 송신 버퍼 → 네트워크
+
+### 6.6 왜 epoll이 특별한가?
+
+**성능 비교:**
+
+| 방식 | 시간 복잡도 | 1000명 처리 | 10000명 처리 |
+|------|----------|----------|-----------|
+| 스레드 | O(n) | 가능 | 메모리 부족 |
+| select() | O(n) | 느림 | 매우 느림 |
+| poll() | O(n) | 느림 | 매우 느림 |
+| **epoll** | **O(1)** | **빠름** | **매우 빠름** |
+
+**epoll이 빠른 이유:**
+- 커널이 "준비된 소켓"만 반환합니다.
+- 모든 소켓을 검사할 필요가 없습니다.
+- 10000개 중 10개만 준비되면, 10개만 처리합니다!
+
+### 6.7 Level-Triggered vs Edge-Triggered
+
+epoll은 두 가지 모드를 지원합니다.
+
+**Level-Triggered (LT) - 기본 모드:**
 ```
-- write()는 버퍼에 복사만 하고 반환
-- 실제 전송은 커널이 비동기적으로 처리
-- 버퍼가 가득 차면 블로킹
-
-**수신 버퍼 (Receive Buffer):**
+클라이언트가 "데이터 준비됐어요!" 상태 → 계속 알려줍니다.
+- 읽을 데이터가 있으면, 계속 epoll_wait()에서 알려줍니다.
+- 더 안전합니다. (데이터를 깜빡 놓쳐도 다시 알려줌)
 ```
-네트워크 → 커널 수신 버퍼 → read() → 응용
+
+**Edge-Triggered (ET) - 고성능 모드:**
 ```
-- 도착한 데이터는 버퍼에 저장
-- read()는 버퍼에서 복사
-- 버퍼가 비어있으면 블로킹
-
-**윈도우 크기와 흐름 제어:**
-- TCP 헤더의 Window Size 필드
-- 수신 버퍼의 남은 공간 광고
-- 송신자는 이를 초과하여 전송 불가
-
-### 7.2 Zero-copy 기술
-
-**문제점:**
-```
-디스크 → 커널 버퍼 → 소켓 버퍼 → NIC
-       [복사 1]      [복사 2]
-sendfile() (Linux):
-c#include <sys/sendfile.h>
-ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
-
-커널 공간에서 직접 전송
-사용자 공간 복사 제거
-
-splice() (Linux):
-cssize_t splice(int fd_in, loff_t *off_in, int fd_out,
-               loff_t *off_out, size_t len, unsigned int flags);
-
-파이프를 이용한 zero-copy
-
-7.3 멀티캐스트와 브로드캐스트
-브로드캐스트:
-cint broadcast = 1;
-setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, 
-           &broadcast, sizeof(broadcast));
-
-struct sockaddr_in addr;
-addr.sin_addr.s_addr = inet_addr("255.255.255.255");
-sendto(sockfd, buf, len, 0, (struct sockaddr*)&addr, sizeof(addr));
-멀티캐스트:
-cstruct ip_mreq mreq;
-mreq.imr_multiaddr.s_addr = inet_addr("239.255.0.1");
-mreq.imr_interface.s_addr = INADDR_ANY;
-setsockopt(sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, 
-           &mreq, sizeof(mreq));
-
-멀티캐스트 주소: 224.0.0.0 ~ 239.255.255.255
-IGMP 프로토콜 사용
-
-7.4 Raw 소켓 프로그래밍
-cint sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
-IP 헤더 직접 구성:
-cint on = 1;
-setsockopt(sockfd, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on));
-
-struct ip {
-    u_char  ip_hl:4;        // 헤더 길이
-    u_char  ip_v:4;         // 버전
-    u_char  ip_tos;         // Type of Service
-    u_short ip_len;         // 전체 길이
-    u_short ip_id;          // 식별자
-    u_short ip_off;         // 플래그 + 오프셋
-    u_char  ip_ttl;         // Time To Live
-    u_char  ip_p;           // 프로토콜
-    u_short ip_sum;         // 체크섬
-    struct  in_addr ip_src; // 출발지 주소
-    struct  in_addr ip_dst; // 목적지 주소
-};
-응용:
-
-패킷 스니핑
-포트 스캐닝
-네트워크 진단 도구
-
-7.5 Unix Domain Socket
-특징:
-
-같은 호스트 내 IPC
-파일 시스템 경로 사용
-TCP보다 2배 빠름
-네트워크 오버헤드 없음
-
-예제:
-cstruct sockaddr_un addr;
-memset(&addr, 0, sizeof(addr));
-addr.sun_family = AF_UNIX;
-strncpy(addr.sun_path, "/tmp/mysocket", sizeof(addr.sun_path)-1);
-
-bind(sockfd, (struct sockaddr*)&addr, sizeof(addr));
-SCM_RIGHTS:
-
-파일 디스크립터 전달
-
-cstruct msghdr msg;
-struct cmsghdr *cmsg;
-int fd_to_send = open("file.txt", O_RDONLY);
-
-// ancillary data로 fd 전달
-sendmsg(sockfd, &msg, 0);
-7.6 소켓 보안
-SSL/TLS:
-c#include <openssl/ssl.h>
-
-SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
-SSL *ssl = SSL_new(ctx);
-SSL_set_fd(ssl, sockfd);
-SSL_connect(ssl);
-
-SSL_write(ssl, buf, len);
-SSL_read(ssl, buf, len);
-SO_PEERCRED (Unix):
-cstruct ucred cred;
-socklen_t len = sizeof(cred);
-getsockopt(sockfd, SOL_SOCKET, SO_PEERCRED, &cred, &len);
-// cred.pid, cred.uid, cred.gid
+클라이언트가 "데이터 준비됐어요!" 상태로 변할 때만 → 한 번만 알려줍니다.
+- 상태가 변할 때(예: 데이터 없음→있음)만 알려줍니다.
+- 더 빠르지만, 모든 데이터를 반드시 읽어야 합니다.
+- 놓치면 그 클라이언트는 다시 데이터를 보낼 때까지 알려주지 않습니다!
 ```
 
 ---
 
-## 8. 소켓 상태와 TCP 상태 머신
+## 7. 소켓 상태와 TCP 상태 머신
 
-### 8.1 TCP 연결 상태
+### 7.1 TCP의 인생 여정: 상태 머신 이해하기
+
+TCP 연결은 **마치 사람의 인생처럼 여러 상태**를 거칩니다.
+
+**서버의 관점:**
+1. **CLOSED**: "난 소켓이 없어"
+2. **LISTEN**: "난 포트를 열고 누가 올 때까지 기다리고 있어"
+3. **SYN_RCVD**: "클라이언트가 "안녕?"이라고 했어. 난 "좋아, 난 준비됐어"라고 했어"
+4. **ESTABLISHED**: "우리 연결됐어! 대화할 준비 완료!"
+5. **FIN_WAIT_1**: "클라이언트가 "난 끝났어"라고 했어. 난 "알았어"라고 했어"
+6. **FIN_WAIT_2**: "클라이언트의 최종 ACK를 기다리는 중..."
+7. **TIME_WAIT**: "연결이 끝났지만, 혹시 늦게 도착한 패킷이 있을 수 있으니 잠깐 기다릴게"
+8. **CLOSED**: "완전히 끝"
+
+**클라이언트의 관점:**
+1. **CLOSED**: "난 서버에 아직 안 연결했어"
+2. **SYN_SENT**: "서버에 "안녕, 연결할래?"라고 보냈어"
+3. **ESTABLISHED**: "서버가 "좋아"라고 했어! 연결됐다!"
+4. **FIN_WAIT_1**: "난 "끝내자"라고 했어"
+5. **CLOSED**: "완전히 끝"
+
 ```
-CLOSED
-  ↓ (passive open)
-LISTEN
-  ↓ (receive SYN)
-SYN_RCVD
-  ↓ (receive ACK)
-ESTABLISHED ←── (active open, 3-way handshake 완료)
-  ↓ (close)
-FIN_WAIT_1
-  ↓ (receive ACK)
-FIN_WAIT_2
-  ↓ (receive FIN)
-TIME_WAIT
+클라이언트                      서버
+                             CLOSED
+                               ↓ (socket, bind, listen)
+                             LISTEN
+                               ↑
+connect() →
+  ↓                            ↓ (receive SYN)
+SYN_SENT                    SYN_RCVD
+  ↓                            ↓
+  ← ← ← ← ← ← ← ← ← ← ← (receive SYN+ACK)
+ESTABLISHED              ESTABLISHED
+  ↓ (send ACK)               ↓
+  → → → → → → → → → → → → (ACK)
+  ↓                            ↓ (receive ACK)
+[데이터 교환]             [데이터 교환]
+  ↓                            ↓
+close()                      close()
+  ↓                            ↓ (receive FIN)
+FIN_WAIT_1                FIN_WAIT_1
+  ↓                            ↓
+  ← ← ← ← ← ← ← ← ← ← ← (ACK)
+FIN_WAIT_2                 CLOSING
+  ↓                            ↓ (send FIN)
+  ← ← ← ← ← ← ← ← ← ← ← (FIN)
+TIME_WAIT                   CLOSED
   ↓ (2MSL timeout)
 CLOSED
 ```
 
-### 8.2 TIME_WAIT 상태
+### 7.2 도대체 TIME_WAIT 상태가 뭐가 필요해?
 
-**목적:**
-1. 마지막 ACK가 손실되었을 경우 재전송
-2. 지연된 패킷이 새 연결에 영향 방지
+앞서 배웠듯이, TCP 연결이 종료되면 **TIME_WAIT** 상태로 2분 정도 기다립니다. "뭐하는 거야?"라고 생각할 수 있습니다.
+
+**시나리오**: 4-way handshake의 마지막 ACK가 손실되었다면?
+
+```
+클라이언트                                        서버
+   | close() → FIN 전송                           |
+   |────────────────────────────────────────────>|
+   |                                              | ACK 전송
+   |<────────────────────────────────────────────|
+   |                                              | close() → FIN 전송
+   |<────────────────────────────────────────────|
+   | ACK 전송                                     |
+   |────────────────────────────X (손실됨!)      |
+   |                                              | "어? ACK를 못 받았는데?"
+   |                                              | 다시 FIN 전송? (재시도)
+   |<────────────────────────────────────────────|
+   |
+```
+
+만약 TIME_WAIT 상태가 없다면?
+- 클라이언트가 즉시 같은 포트로 새 서버를 시작
+- 서버의 재시도 FIN이 도착 → 혼란!
+- 새 연결로 착각할 수 있음
+
+**TIME_WAIT의 역할:**
+1. 마지막 ACK 손실 시, 서버의 재시도 FIN에 다시 ACK 보냄
+2. 네트워크에 떠도는 지연된 패킷이 새 연결에 영향 주지 않도록 기다림
 
 **기간:**
-- 2MSL (Maximum Segment Lifetime)
-- 일반적으로 1~4분
+- 일반적으로 30초~2분 (운영체제마다 다름)
+- `netstat -an` 명령으로 확인 가능
 
-**문제:**
-- 같은 주소/포트 즉시 재사용 불가
-- 해결: SO_REUSEADDR 옵션
+이것이 "Address already in use" 에러의 원인입니다. 개발 중에 서버를 빠르게 재시작하려면 `SO_REUSEADDR` 옵션을 켜야 합니다.
 
-### 8.3 Half-close 상태
+## 8. 오류 처리: "뭐가 잘못됐는지" 알아차리기
+
+### 8.1 네트워크 프로그래밍은 실패로 가득 찼다
+
+소켓 프로그래밍을 할 때, **모든 것이 실패할 수 있다**는 관점으로 시작해야 합니다:
+- 서버가 실행되지 않았을 수도
+- 네트워크가 끊겼을 수도
+- 상대방이 갑자기 연결을 끊었을 수도
+- 방화벽이 패킷을 차단했을 수도
+
+이런 상황들은 **에러 코드**로 반환됩니다. 이를 제대로 처리하지 않으면, 버그를 찾을 수 없습니다.
+
+### 8.2 주요 에러 코드와 대처법
+
+**ECONNREFUSED: 연결 거부**
 ```
-클라이언트         서버
-ESTABLISHED   ESTABLISHED
-    ↓
-shutdown(WR)
-FIN_WAIT_1 →──FIN──→ CLOSE_WAIT
-FIN_WAIT_2 ←──ACK──←
-    ↓                   ↓
-  (수신만)          (송신 가능)
-    ↓                   ↓
-          ←──data──←
-          ─→─ACK─→
-          ←──FIN───←   (close)
-TIME_WAIT ─→─ACK─→  LAST_ACK
-    ↓                   ↓
-  CLOSED            CLOSED
+connect()가 이 에러를 반환했다?
+→ "서버가 실행되지 않거나, 그 포트가 열려있지 않아요"
+→ 대처: 서버 시작 확인, 포트 번호 확인
+```
 
-9. 성능 최적화
-9.1 Nagle 알고리즘
-동작:
-
-작은 패킷 모아서 전송
-MSS 크기가 되거나 ACK 받을 때까지 대기
-
-문제:
-
-지연 발생 (interactive 응용에 부적합)
-
-해결:
-cint flag = 1;
-setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
-9.2 Delayed ACK
-동작:
-
-ACK를 즉시 보내지 않고 지연 (보통 200ms)
-데이터와 함께 piggyback
-
-문제:
-
-Nagle + Delayed ACK = 상호작용 지연
-요청-응답 패턴에서 심각
-
-9.3 버퍼 크기 튜닝
-c// 대역폭-지연 곱(BDP) 계산
-// BDP = Bandwidth × RTT
-// 예: 100Mbps × 100ms = 1.25MB
-
-int bufsize = 1310720;  // 1.25MB
-setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
-setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
-9.4 TCP Fast Open (TFO)
-cint qlen = 5;
-setsockopt(sockfd, IPPROTO_TCP, TCP_FASTOPEN, &qlen, sizeof(qlen));
-장점:
-
-3-way handshake 중 데이터 전송
-RTT 절약
-
-9.5 Concurrent Server 패턴
-1. Iterative Server:
-
-한 번에 하나의 클라이언트만 처리
-단순하지만 확장성 없음
-
-2. Forking Server:
-cwhile (1) {
-    int connfd = accept(listenfd, ...);
-    pid_t pid = fork();
-    if (pid == 0) {  // 자식
-        close(listenfd);
-        handle_client(connfd);
-        exit(0);
+```cpp
+if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+    if (errno == ECONNREFUSED) {
+        printf("서버가 없습니다. 서버를 먼저 시작하세요!\n");
     }
-    close(connfd);  // 부모
 }
-3. Threading Server:
-cwhile (1) {
-    int *connfd = malloc(sizeof(int));
-    *connfd = accept(listenfd, ...);
-    pthread_t tid;
-    pthread_create(&tid, NULL, handle_client, connfd);
-    pthread_detach(tid);
-}
-4. Pre-forked/Pre-threaded:
+```
 
-미리 worker 생성
-accept() 경쟁 (thundering herd)
-해결: accept mutex 또는 SO_REUSEPORT
+**EADDRINUSE: 주소가 이미 사용 중**
+```
+bind()가 이 에러를 반환했다?
+→ "그 포트는 이미 누군가 사용 중이에요"
+→ 원인 1: 같은 서버를 두 번 시작함
+→ 원인 2: TIME_WAIT 상태의 포트 (서버 재시작 직후)
+→ 대처: SO_REUSEADDR 옵션 사용
+```
 
-5. Event-driven (Reactor Pattern):
-cepoll_wait() {
-    for each ready socket:
-        if (listenfd) {
-            accept();
-        } else {
-            read/write();
-        }
-}
-6. Proactor Pattern:
+```cpp
+int reuse = 1;
+setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR,
+           (const char*)&reuse, sizeof(reuse));
+bind(server_fd, &addr, sizeof(addr));
+```
 
-비동기 I/O (aio, io_uring)
-완료 통지
+**ETIMEDOUT: 연결 시간 초과**
+```
+connect()가 시간 초과되었다?
+→ "서버가 너무 오래 응답이 없어요"
+→ 원인: 서버가 느리거나, 네트워크 지연이 심함
+→ 대처: 네트워크 확인, SO_RCVTIMEO 설정
+```
 
+**ECONNRESET: 연결이 원격에 의해 리셋됨**
+```
+read()나 write() 중에 이 에러가 났다?
+→ "상대방이 갑자기 연결을 끊었어요"
+→ 원인: 상대 프로세스 크래시, 상대 네트워크 끊김
+→ 대처: 연결 재시도, 예외 처리
+```
 
-10. 오류 처리
-10.1 주요 에러 코드
-ECONNREFUSED:
+**EPIPE: 이미 닫힌 소켓에 write**
+```
+write()가 이 에러를 반환했다?
+→ "상대방이 먼저 연결을 닫았는데, 넌 아직 보내려고 해?"
+→ 원인: 상대방이 먼저 close() 호출
+→ 대처: write() 전에 항상 연결 상태 확인
+```
 
-연결 거부 (서버 미실행)
+**EMFILE / ENFILE: 파일 디스크립터 부족**
+```
+accept()가 이 에러를 반환했다?
+→ "더 이상 소켓을 만들 수 없어요. 시스템 한계에 도달했어요"
+→ 원인: 메모리 부족, accept한 소켓을 close() 하지 않음
+→ 대처: 메모리 누수 찾기, 리소스 정리
+```
 
-ETIMEDOUT:
+**EAGAIN / EWOULDBLOCK: 논블로킹 소켓에서 데이터 없음**
+```
+논블로킹 소켓에서 read()를 호출했는데 이 에러?
+→ "지금 읽을 데이터가 없어요. 나중에 다시 시도하세요"
+→ 멀티플렉싱(epoll)과 함께 사용됨
+```
 
-연결 시간 초과
+### 8.3 올바른 에러 처리의 패턴
 
-ECONNRESET:
+```cpp
+// ❌ 나쁜 예: 에러 처리 없음
+int client_fd = accept(server_fd, &addr, &len);
+read(client_fd, buffer, 1024);
 
-연결이 원격에 의해 리셋됨
-RST 패킷 수신
-
-EPIPE:
-
-이미 닫힌 소켓에 write
-SIGPIPE 시그널 발생
-
-EADDRINUSE:
-
-주소가 이미 사용 중
-TIME_WAIT 상태 또는 다른 프로세스
-
-EMFILE / ENFILE:
-
-파일 디스크립터 부족
-프로세스/시스템 한계
-
-EAGAIN / EWOULDBLOCK:
-
-논블로킹 소켓에서 데이터 없음
-
-10.2 SIGPIPE 처리
-c// 방법 1: 시그널 무시
-signal(SIGPIPE, SIG_IGN);
-
-// 방법 2: MSG_NOSIGNAL 플래그
-send(sockfd, buf, len, MSG_NOSIGNAL);
-10.3 Graceful Shutdown
-cvoid graceful_shutdown(int sockfd) {
-    // 송신 종료
-    shutdown(sockfd, SHUT_WR);
-    
-    // 남은 데이터 수신
-    char buf[1024];
-    while (recv(sockfd, buf, sizeof(buf), 0) > 0) {
-        // 버림
-    }
-    
-    close(sockfd);
+// ✓ 좋은 예: 모든 반환값 확인
+int client_fd = accept(server_fd, &addr, &len);
+if (client_fd == -1) {
+    printf("accept 실패: %s\n", strerror(errno));
+    continue;  // 다음 요청으로
 }
 
-11. 디버깅과 모니터링
-11.1 netstat
-bashnetstat -anp | grep 8080
-# -a: 모든 소켓
-# -n: 숫자로 표시
-# -p: 프로세스 정보
-11.2 ss (socket statistics)
-bashss -tapn
-# netstat보다 빠름
-11.3 tcpdump
-bashtcpdump -i eth0 port 80 -w capture.pcap
-11.4 Wireshark
+ssize_t n = read(client_fd, buffer, 1024);
+if (n == -1) {
+    printf("read 실패: %s\n", strerror(errno));
+    close(client_fd);
+    continue;
+} else if (n == 0) {
+    printf("클라이언트가 연결을 닫았습니다\n");
+    close(client_fd);
+    continue;
+}
 
-GUI 패킷 분석기
-프로토콜 디코딩
+// n > 0: 정상적으로 데이터 수신
+```
 
-11.5 strace
-bashstrace -e trace=network ./program
-# 시스템 콜 추적
-11.6 lsof
-bashlsof -i :8080
-# 포트 사용 프로세스 확인
+## 9. 소켓 프로그래밍 마무리: 주의할 점들
 
-12. 소켓 프로그래밍 베스트 프랙티스
-12.1 체크리스트
+### 9.1 "반드시" 확인해야 할 것들
 
-항상 반환값 확인
+**1. 모든 반환값 확인하기**
 
-cif (socket(...) < 0) {
+```cpp
+// ❌ 나쁜 예
+socket(AF_INET, SOCK_STREAM, 0);
+bind(server_fd, &addr, sizeof(addr));
+
+// ✓ 좋은 예
+int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+if (server_fd == -1) {
     perror("socket");
     exit(1);
 }
 
-바이트 순서 변환
-
-cuint16_t port = htons(8080);        // host to network short
-uint32_t addr = htonl(INADDR_ANY);  // host to network long
-uint16_t host_port = ntohs(port);   // network to host short
-
-타임아웃 설정
-
-cstruct timeval tv = {.tv_sec = 10};
-setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-
-리소스 정리
-
-cif (sockfd >= 0) close(sockfd);
-
-시그널 처리
-
-c// SIGPIPE 무시
-signal(SIGPIPE, SIG_IGN);
-
-// EINTR 재시도
-while ((n = recv(...)) < 0 && errno == EINTR);
-12.2 일반적인 실수
-
-부분 전송/수신 미처리
-바이트 순서 변환 누락
-버퍼 오버플로우
-메모리 누수 (accept된 소켓 미닫기)
-TIME_WAIT 상태 미고려
-IPv4 하드코딩 (IPv6 호환성 부족)
-에러 처리 누락
-
-
-13. 실전 예제
-13.1 간단한 TCP 에코 서버
-c#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-
-#define PORT 8080
-#define BUFFER_SIZE 1024
-
-int main() {
-    int server_fd, client_fd;
-    struct sockaddr_in server_addr, client_addr;
-    socklen_t client_len = sizeof(client_addr);
-    char buffer[BUFFER_SIZE];
-    
-    // 1. 소켓 생성
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd < 0) {
-        perror("socket");
-        exit(1);
-    }
-    
-    // 2. SO_REUSEADDR 설정
-    int opt = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    
-    // 3. 주소 구조체 초기화
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(PORT);
-    
-    // 4. 바인딩
-    if (bind(server_fd, (struct sockaddr*)&server_addr, 
-             sizeof(server_addr)) < 0) {
-        perror("bind");
-        exit(1);
-    }
-    
-    // 5. 리스닝
-    if (listen(server_fd, 10) < 0) {
-        perror("listen");
-        exit(1);
-    }
-    
-    printf("Server listening on port %d\n", PORT);
-    
-    // 6. 클라이언트 처리 루프
-    while (1) {
-        client_fd = accept(server_fd, (struct sockaddr*)&client_addr, 
-                          &client_len);
-        if (client_fd < 0) {
-            perror("accept");
-            continue;
-        }
-        
-        char client_ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &client_addr.sin_addr, 
-                 client_ip, sizeof(client_ip));
-        printf("Client connected: %s:%d\n", 
-               client_ip, ntohs(client_addr.sin_port));
-        
-        // 에코 루프
-        ssize_t n;
-        while ((n = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0) {
-            send(client_fd, buffer, n, 0);
-        }
-        
-        close(client_fd);
-        printf("Client disconnected\n");
-    }
-    
+if (bind(server_fd, &addr, sizeof(addr)) == -1) {
+    perror("bind");
     close(server_fd);
-    return 0;
+    exit(1);
 }
-13.2 멀티스레드 TCP 서버
-c#include <pthread.h>
+```
 
-void *handle_client(void *arg) {
-    int client_fd = *(int*)arg;
-    free(arg);
-    
-    char buffer[1024];
-    ssize_t n;
-    
-    while ((n = recv(client_fd, buffer, sizeof(buffer), 0)) > 0) {
-        send(client_fd, buffer, n, 0);
-    }
-    
-    close(client_fd);
-    return NULL;
+**2. 바이트 순서 변환**
+
+컴퓨터는 **바이트 순서**를 어떻게 해석하는지에 따라 숫자가 달라집니다.
+
+예: 포트 번호 8080을 어떻게 저장할까요?
+- **Big-Endian**: `0x1F 0x90` (높은 자리부터)
+- **Little-Endian**: `0x90 0x1F` (낮은 자리부터)
+
+네트워크는 **Big-Endian** (호스트 바이트 순서)을 사용합니다. 따라서 변환이 필요합니다.
+
+```cpp
+// ❌ 나쁜 예: 변환 안 함
+addr.sin_port = 8080;
+
+// ✓ 좋은 예: htons() 사용 (host to network short)
+addr.sin_port = htons(8080);
+
+// 다른 변환 함수들:
+htonl() // 32-bit 정수
+ntohs() // 네트워크 → 호스트 (16-bit)
+ntohl() // 네트워크 → 호스트 (32-bit)
+```
+
+**3. 리소스 정리**
+
+소켓도 파일입니다. 사용 후 **반드시 닫아야 합니다.**
+
+```cpp
+// ❌ 나쁜 예: 소켓을 닫지 않음
+int client_fd = accept(server_fd, &addr, &len);
+read(client_fd, buffer, 1024);
+// 함수 끝 → client_fd가 열린 상태로 남음 (메모리 누수!)
+
+// ✓ 좋은 예: 항상 닫기
+int client_fd = accept(server_fd, &addr, &len);
+if (client_fd != -1) {
+    read(client_fd, buffer, 1024);
+    close(client_fd);  // ← 중요!
 }
+```
 
-int main() {
-    // ... (소켓 생성, 바인딩, 리스닝)
-    
-    while (1) {
-        int *client_fd = malloc(sizeof(int));
-        *client_fd = accept(server_fd, ...);
-        
-        pthread_t tid;
-        pthread_create(&tid, NULL, handle_client, client_fd);
-        pthread_detach(tid);
-    }
+### 9.2 "자주 실수하는" 것들
+
+**실수 1: 부분 전송/수신 미처리**
+
+```cpp
+// ❌ 나쁜 예: 5바이트를 보냈다고 가정
+write(sock, "Hello", 5);
+
+// 실제로는 3바이트만 전송되었을 수도!
+// "Hel"만 보내지고 "lo"는 나중에?
+
+// ✓ 좋은 예: 반환값 확인
+ssize_t n = write(sock, "Hello", 5);
+if (n == -1) {
+    perror("write");
+} else if (n < 5) {
+    printf("%ld바이트만 전송됨\n", n);
 }
-13.3 epoll 기반 서버
-c#include <sys/epoll.h>
+```
 
-#define MAX_EVENTS 100
+**실수 2: IPv6 미지원 (IPv4 하드코딩)**
 
-int main() {
-    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    // ... (바인딩, 리스닝)
-    
-    // 논블로킹 설정
-    int flags = fcntl(server_fd, F_GETFL, 0);
-    fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
-    
-    // epoll 생성
-    int epfd = epoll_create1(0);
-    
-    struct epoll_event ev, events[MAX_EVENTS];
-    ev.events = EPOLLIN;
-    ev.data.fd = server_fd;
-    epoll_ctl(epfd, EPOLL_CTL_ADD, server_fd, &ev);
-    
-    while (1) {
-        int nfds = epoll_wait(epfd, events, MAX_EVENTS, -1);
-        
-        for (int i = 0; i < nfds; i++) {
-            if (events[i].data.fd == server_fd) {
-                // 새 연결 수락
-                int client_fd = accept(server_fd, NULL, NULL);
-                
-                // 논블로킹 설정
-                flags = fcntl(client_fd, F_GETFL, 0);
-                fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
-                
-                // epoll에 추가
-                ev.events = EPOLLIN | EPOLLET;  // Edge-triggered
-                ev.data.fd = client_fd;
-                epoll_ctl(epfd, EPOLL_CTL_ADD, client_fd, &ev);
-            } else {
-                // 클라이언트 데이터 처리
-                char buffer[1024];
-                ssize_t n;
-                
-                while ((n = recv(events[i].data.fd, buffer, 
-                                sizeof(buffer), 0)) > 0) {
-                    send(events[i].data.fd, buffer, n, 0);
-                }
-                
-                if (n == 0 || (n < 0 && errno != EAGAIN)) {
-                    close(events[i].data.fd);
-                }
-            }
-        }
-    }
-    
-    return 0;
-}
+```cpp
+// ❌ 나쁜 예: AF_INET만 지원
+socket(AF_INET, SOCK_STREAM, 0);
 
-14. 참고 문헌 및 추가 학습 자료
-14.1 표준 문서
+// ✓ 좋은 예: getaddrinfo() 사용 (IPv4/IPv6 모두 지원)
+struct addrinfo hints = {0};
+hints.ai_family = AF_UNSPEC;  // IPv4/IPv6 자동 선택
+// ...
+```
 
-POSIX.1-2008 (IEEE Std 1003.1-2008)
-RFC 793 (TCP)
-RFC 768 (UDP)
-RFC 791 (IP)
+**실수 3: 타임아웃 미설정**
 
-14.2 권장 도서
+```cpp
+// ❌ 나쁜 예: 무한 대기
+read(sock, buffer, 1024);  // 데이터가 안 오면 영원히 기다림
 
-"Unix Network Programming" - W. Richard Stevens
-"TCP/IP Illustrated, Volume 1" - W. Richard Stevens
-"The Linux Programming Interface" - Michael Kerrisk
-"Computer Networks" - Andrew S. Tanenbaum
+// ✓ 좋은 예: 타임아웃 설정
+struct timeval tv;
+tv.tv_sec = 5;   // 5초
+tv.tv_usec = 0;
+setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO,
+           (const char*)&tv, sizeof(tv));
+read(sock, buffer, 1024);  // 5초 후 타임아웃
+```
 
-14.3 온라인 리소스
+**실수 4: SIGPIPE 처리 안 함 (Linux/Unix)**
 
-Beej's Guide to Network Programming
-Linux man pages (man 2 socket, man 7 tcp)
-POSIX specification
+```cpp
+// ❌ 나쁜 예: SIGPIPE 미처리
+write(sock, data, len);  // 닫힌 소켓에 write → SIGPIPE 시그널 → 프로세스 종료!
 
+// ✓ 좋은 예: SIGPIPE 무시
+signal(SIGPIPE, SIG_IGN);
+write(sock, data, len);  // 에러 반환되지만, 프로세스 종료 안 함
+```
+
+**실수 5: TIME_WAIT 상태 미고려**
+
+이미 배웠듯이, 서버를 재시작할 때 "Address already in use" 에러가 나면 답답합니다.
+
+```cpp
+// ✓ 서버 시작 시 항상 이것을 추가
+int reuse = 1;
+setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR,
+           (const char*)&reuse, sizeof(reuse));
+bind(server_fd, &addr, sizeof(addr));
+```
+
+### 9.3 요약: 네트워크 프로그래밍의 황금 규칙
+
+1. **모든 반환값을 확인하라.** (socket, bind, connect, accept, read, write, close)
+2. **모든 에러를 처리하라.** (errno 확인, strerror() 사용)
+3. **모든 리소스를 정리하라.** (close() 호출)
+4. **바이트 순서를 변환하라.** (htons, htonl 등)
+5. **타임아웃을 설정하라.** (SO_RCVTIMEO, SO_SNDTIMEO)
+6. **부분 전송/수신을 처리하라.** (루프로 전체 데이터 보내기)
+7. **플랫폼 차이를 고려하라.** (Windows vs Linux, IPv4 vs IPv6)

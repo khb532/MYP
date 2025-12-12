@@ -43,7 +43,8 @@
 
 **구조체:**
 ```c
-struct sockaddr_in {
+struct sockaddr_in 
+{
     sa_family_t    sin_family;  // AF_INET (항상 이 값)
     in_port_t      sin_port;    // 포트 번호 (16비트)
     struct in_addr sin_addr;    // IPv4 주소 (32비트)
@@ -214,7 +215,8 @@ inet_pton(AF_INET6, "2001:db8::1", &addr.sin6_addr);
 파일 시스템의 경로를 주소로 사용합니다.
 
 ```c
-struct sockaddr_un {
+struct sockaddr_un 
+{
     sa_family_t sun_family;  // AF_UNIX
     char        sun_path[108];  // 경로명
 };
@@ -590,7 +592,8 @@ Raw 소켓: 프로그래머가 직접 헤더 구성
 
 **1. IP 헤더 직접 접근**
 ```c
-struct iphdr {
+struct iphdr 
+{
     uint8_t  version:4, ihl:4;  // 버전, 헤더 길이
     uint8_t  tos;               // Type of Service
     uint16_t tot_len;           // 전체 길이
@@ -860,6 +863,3 @@ socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 2. 어떻게 통신? → 타입 결정
 3. 신뢰성 vs 속도 트레이드오프 고려
 
----
-
-다음: [Part 3: TCP 소켓의 동작 원리 →](03_tcp_basics.md)
