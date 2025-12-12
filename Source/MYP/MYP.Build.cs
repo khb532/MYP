@@ -18,7 +18,11 @@ public class MYP : ModuleRules
 			"StateTreeModule",
 			"GameplayStateTreeModule",
 			"UMG",
-			"Slate"
+			"Slate",
+			"Niagara",
+			"RenderCore",
+			"RHI",
+			"Projects"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });

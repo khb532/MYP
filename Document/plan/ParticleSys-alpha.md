@@ -31,7 +31,11 @@
 ### Phase Alpha-1: 최소 GPU 파이프라인 (3-4일)
 
 #### 목표
-바이트코드를 GPU에서 실행하고 결과를 CPU로 가져오기
+바이트코드를 GPU에서 실행하고 결과를 **RenderTarget2D에 유지** (Zero-Copy)
+
+> **⚠️ 중요 아키텍처 변경 (Gemini 검토 반영)**:
+> - ❌ 기존: GPU → CPU TArray 변환 → 나이아가라 (PCIe 병목 발생)
+> - ✅ 변경: GPU → RenderTarget2D → 나이아가라 직접 읽기 (Zero-Copy)
 
 #### 구현 항목
 
@@ -76,32 +80,32 @@
 **2. Compute Shader 구현** (1-2일)
 - [ ] `ParticleSimulation.usf` 생성
   ```hlsl
-  // 파티클 데이터 구조
-  struct FParticle
-  {
-      float3 Position;
-      float3 Color;
-  };
-
-  RWStructuredBuffer<FParticle> ParticleBuffer;
+  // ⚠️ 수정: RenderTarget2D에 직접 기록
+  RWTexture2D<float4> PositionTexture;  // RGB = Position, A = unused
+  RWTexture2D<float4> ColorTexture;     // RGB = Color, A = unused
   StructuredBuffer<uint> BytecodeBuffer;
   StructuredBuffer<float> ConstantBuffer;
 
   float Time;
   uint ParticleCount;
+  uint TextureWidth;  // 예: 32x32 = 1024 파티클
 
-  [numthreads(64, 1, 1)]
+  [numthreads(8, 8, 1)]
   void MainCS(uint3 ThreadId : SV_DispatchThreadID)
   {
-      uint ParticleId = ThreadId.x;
+      uint2 TexCoord = ThreadId.xy;
+      uint ParticleId = TexCoord.y * TextureWidth + TexCoord.x;
+
       if (ParticleId >= ParticleCount) return;
 
       // 스택 기반 인터프리터 구현
       float Stack[32];
       int StackPtr = 0;
+      float3 ResultPos = float3(0, 0, 0);
+      float3 ResultColor = float3(1, 1, 1);
 
       // 바이트코드 실행 루프
-      uint PC = 0; // Program Counter
+      uint PC = 0;
       while (PC < BytecodeLength)
       {
           uint OpCode = BytecodeBuffer[PC++];
@@ -115,11 +119,18 @@
                   Stack[StackPtr-2] = Stack[StackPtr-2] + Stack[StackPtr-1];
                   StackPtr--;
                   break;
+              case OP_STORE_POS_X:
+                  ResultPos.x = Stack[--StackPtr];
+                  break;
               // ... 나머지 OpCode 구현
+              case OP_HALT:
+                  break;
           }
       }
 
-      // 결과는 이미 ParticleBuffer에 저장됨
+      // ✅ GPU 메모리에 직접 저장 (CPU로 내려가지 않음!)
+      PositionTexture[TexCoord] = float4(ResultPos, 1.0);
+      ColorTexture[TexCoord] = float4(ResultColor, 1.0);
   }
   ```
 
@@ -135,14 +146,27 @@
       void InitializeBuffers(int32 NumParticles);
       void UploadBytecode(const TArray<uint32>& Bytecode);
       void ExecuteSimulation(float DeltaTime);
-      void DownloadResults(TArray<FVector>& OutPositions, TArray<FLinearColor>& OutColors);
+
+      // ✅ 변경: CPU 다운로드 함수 제거!
+      // ❌ void DownloadResults(...) 삭제
+
+      // ✅ 추가: 나이아가라가 읽을 RenderTarget 반환
+      UTextureRenderTarget2D* GetPositionTexture() const { return PositionRT; }
+      UTextureRenderTarget2D* GetColorTexture() const { return ColorRT; }
 
   private:
-      FRWBuffer ParticleBuffer;
+      // ✅ 변경: Buffer 대신 RenderTarget 사용
+      UPROPERTY()
+      UTextureRenderTarget2D* PositionRT;  // 32x32 RGBA16F
+
+      UPROPERTY()
+      UTextureRenderTarget2D* ColorRT;     // 32x32 RGBA16F
+
       FRWBuffer BytecodeBuffer;
       FRWBuffer ConstantBuffer;
 
       int32 ParticleCount;
+      int32 TextureSize;  // sqrt(ParticleCount) 반올림
   };
   ```
 
@@ -153,17 +177,25 @@
       ENQUEUE_RENDER_COMMAND(ParticleSimCommand)(
           [this, DeltaTime](FRHICommandListImmediate& RHICmdList)
           {
-              // Shader 바인딩
-              // SetShaderParameters
-              // DispatchComputeShader
+              // PositionRT, ColorRT의 UAV 가져오기
+              FRHIUnorderedAccessView* PositionUAV = PositionRT->GetRenderTargetResource()->GetTextureUAV();
+              FRHIUnorderedAccessView* ColorUAV = ColorRT->GetRenderTargetResource()->GetTextureUAV();
+
+              // Shader 파라미터 바인딩
+              // DispatchComputeShader(TextureSize, TextureSize, 1)
           });
   }
   ```
 
 **산출물**:
-- `ParticleSimulation.usf`
-- `ParticleComputeComponent.h/cpp`
+- `ParticleSimulation.usf` (RenderTarget 출력)
+- `ParticleComputeComponent.h/cpp` (RenderTarget 관리)
 - 하드코딩된 테스트 바이트코드
+
+**⚠️ Phase Alpha-1 핵심 검증 사항**:
+- [ ] RenderTarget2D가 Compute Shader에서 정상적으로 쓰기 가능한가?
+- [ ] 1000개 파티클 (32x32 텍스처) 처리 시간 측정 (목표: <1ms)
+- [ ] GPU Profiler로 Compute Shader 성능 확인
 
 ---
 
@@ -218,25 +250,33 @@
   - 나이아가라는 플레이트 로컬 공간에서 **+Z 방향**으로 오프셋
   - 기즈모 없음 (위치 조작 불가)
 
-**2. 나이아가라 시스템 설정** (1일)
+**2. 나이아가라 시스템 설정** (1-2일)
 - [ ] `NS_TestParticles` 생성
   - 단일 이미터
   - Sprite 파티클
   - Emitter State: Infinite (계속 유지)
 
-- [ ] User Parameters 설정
-  - `User.Positions` (Vector Array)
-  - `User.Colors` (Linear Color Array)
+- [ ] ✅ **Grid 2D Collection 방식으로 변경**
+  - User Parameters 설정:
+    - `User.PositionTexture` (Texture2D) ← Compute Shader 출력
+    - `User.ColorTexture` (Texture2D) ← Compute Shader 출력
+    - `User.TextureSize` (Int, 예: 32)
 
 - [ ] 파티클 Spawn
   - Spawn Rate: 0
-  - Spawn Burst: ParticleCount (한 번만)
+  - Spawn Burst: ParticleCount (한 번만, 1024개)
 
-- [ ] 파티클 Update
+- [ ] 파티클 Update (Texture Sample)
   ```
-  Particle.Position = User.Positions[Particle.ID]
-  Particle.Color = User.Colors[Particle.ID]
+  // Grid 2D Collection 사용
+  float2 UV = float2(Particle.ID % TextureSize, Particle.ID / TextureSize) / TextureSize;
+  Particle.Position = SampleTexture2D(User.PositionTexture, UV).xyz;
+  Particle.Color = SampleTexture2D(User.ColorTexture, UV).rgb;
   ```
+
+> **💡 Gemini 제안 핵심**:
+> - ❌ 기존: `SetNiagaraArrayVector()` 사용 (CPU 경유)
+> - ✅ 변경: Texture Sample로 GPU에서 직접 읽기
 
 **2. 홀로그램 머티리얼** (1일)
 - [ ] `M_SimpleHologram` 생성
@@ -255,21 +295,19 @@
   {
       Super::BeginPlay();
 
-      // 하드코딩된 Lua 스크립트 (선택 사항)
-      FString LuaCode = TEXT(R"(
-          function update(id, time)
-              local angle = time + id
-              local x = math.cos(angle) * 100
-              local y = math.sin(angle) * 100
-              return x, y, 0
-          end
-      )");
-
-      // 또는 직접 바이트코드
+      // 바이트코드 생성 (Lua 컴파일러 없이 직접 작성)
       TArray<uint32> Bytecode = GenerateCircleMotionBytecode();
 
       ComputeComponent->InitializeBuffers(1000);
       ComputeComponent->UploadBytecode(Bytecode);
+
+      // ✅ 변경: RenderTarget을 나이아가라에 전달 (BeginPlay에서 한 번만)
+      ParticleSystem->SetTextureObject(TEXT("User.PositionTexture"),
+                                       ComputeComponent->GetPositionTexture());
+      ParticleSystem->SetTextureObject(TEXT("User.ColorTexture"),
+                                       ComputeComponent->GetColorTexture());
+      ParticleSystem->SetNiagaraVariableInt(TEXT("User.TextureSize"), 32);
+
       ParticleSystem->Activate();
   }
 
@@ -277,19 +315,17 @@
   {
       Super::Tick(DeltaTime);
 
-      // 1. Compute Shader 실행
+      // ✅ 변경: Compute Shader만 실행 (CPU 다운로드/업로드 없음!)
       ComputeComponent->ExecuteSimulation(DeltaTime);
 
-      // 2. 결과 다운로드
-      TArray<FVector> Positions;
-      TArray<FLinearColor> Colors;
-      ComputeComponent->DownloadResults(Positions, Colors);
-
-      // 3. 나이아가라로 전달
-      ParticleSystem->SetNiagaraArrayVector(TEXT("User.Positions"), Positions);
-      ParticleSystem->SetNiagaraArrayLinearColor(TEXT("User.Colors"), Colors);
+      // ❌ 삭제: DownloadResults, SetNiagaraArrayVector 호출 제거
+      // 나이아가라가 자동으로 RenderTarget을 읽음
   }
   ```
+
+> **🚀 성능 개선 핵심**:
+> - 기존: 매 프레임 GPU→CPU→GPU 왕복 (심각한 병목)
+> - 변경: GPU에서 모든 작업 완료 (Zero-Copy)
 
 **산출물**:
 - `PlateActor.h/cpp`
@@ -523,12 +559,12 @@ void APlateActor::BeginPlay()
 - 엔진 소스 코드 읽기 (FComputeShaderUtils)
 - 커뮤니티 예제 활용
 
-### 3. 나이아가라 Array Data Interface 이슈
-**위험**: 대량 데이터 전송 시 퍼포먼스 문제
+### 3. ~~나이아가라 Array Data Interface 이슈~~ (해결됨)
+**위험**: ~~대량 데이터 전송 시 퍼포먼스 문제~~ → **RenderTarget 방식으로 해결**
 **대응**:
-- 파티클 수를 1000개로 제한
-- GPU → CPU 비동기 읽기 (추후)
-- 최악의 경우 Static Mesh Instancing으로 대체
+- ✅ RenderTarget2D 사용으로 CPU 경유 제거
+- ✅ GPU-to-GPU 직접 전송으로 병목 해소
+- ✅ 5,000개 이상 파티클도 처리 가능 예상
 
 ---
 
@@ -562,22 +598,24 @@ Alpha 실패 시:
 
 ---
 
-## 즉시 시작 가능한 작업
+## 즉시 시작 가능한 작업 (수정본)
 
 1. **지금 당장**:
    - `Source/MYP/Particle/` 폴더 생성
+   - `ParticleOpCodes.h` (OpCode enum 정의)
    - `ParticleComputeComponent.h/cpp` 뼈대 작성
    - `PlateActor.h/cpp` 뼈대 작성
-   - OpCode enum 정의
 
 2. **30분 이내**:
+   - ✅ **RenderTarget2D 생성 코드 작성** (32x32 RGBA16F)
    - 하드코딩 바이트코드 배열 작성
    - 원형 모션 바이트코드 완성
 
 3. **오늘 내**:
    - Compute Shader 파일 생성 (`ParticleSimulation.usf`)
+   - ✅ **RWTexture2D 출력 구조로 작성**
    - 기본 스택 인터프리터 구조 작성
-   - PlateActor에 StaticMesh 컴포넌트 추가
+   - PlateActor에 StaticMesh + Niagara 컴포넌트 추가
 
 ---
 
@@ -593,9 +631,38 @@ Alpha 실패 시:
 
 ---
 
-**문서 버전**: Alpha 1.1
+**문서 버전**: Alpha 2.0 (Gemini 검토 반영)
 **작성일**: 2024-12-11 (수정: 2024-12-12)
+**최종 수정**: 2024-12-12 (아키텍처 개선 - Zero-Copy GPU 파이프라인)
 **목표**: 8-11일 내 시연 가능한 프로토타입 완성
+
+---
+
+## 🔄 주요 변경 사항 (v2.0)
+
+### ⚠️ 치명적 성능 병목 해결
+**기존 (v1.1)**:
+```
+Compute Shader → GPU→CPU 복사 → TArray 변환 → CPU→GPU 업로드 → Niagara
+                  ^^^^^^^^^^^^^^^^   (PCIe 병목, 프레임 드랍 확정)
+```
+
+**개선 (v2.0)**:
+```
+Compute Shader → RenderTarget2D (GPU 메모리 유지) → Niagara 직접 읽기
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                  Zero-Copy, 60fps 달성 가능
+```
+
+### 핵심 API 변경
+- ❌ `DownloadResults()` 제거
+- ❌ `SetNiagaraArrayVector()` 제거
+- ✅ `RWTexture2D<float4>` 사용
+- ✅ `SetTextureObject()` 사용 (BeginPlay에서 한 번만)
+
+### 검증 근거
+- Gemini AI Technical Consultant 검토 (ParticleSys_Plan_Review.md)
+- Tech_Feasibility_Analysis.md의 "데이터 파이프라인 병목" 섹션 참조
 
 ---
 
