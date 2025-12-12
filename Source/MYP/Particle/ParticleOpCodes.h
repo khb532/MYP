@@ -46,17 +46,3 @@ enum class EParticleVariable : uint8
 	PARTICLE_ID = 0,			//	현재 파티클 인덱스 (0, 1, 2, ...)
 	TIME = 1					//	경과 시간 (sec)
 };
-class MYP_API ParticleOpCodes
-{
-	/* Method */
-public:
-	ParticleOpCodes();
-	~ParticleOpCodes();
-
-private:
-	/* Field */
-public:
-
-
-private:
-};
