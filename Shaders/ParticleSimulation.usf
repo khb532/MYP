@@ -1,0 +1,159 @@
+// GPU에서 실행되는 파티클 시뮬레이션 Compute Shader
+
+// ==================== 파라미터 ====================
+StructuredBuffer<uint> BytecodeBuffer;
+StructuredBuffer<float> ConstantsBuffer;
+RWTexture2D<float4> PositionRT;
+RWTexture2D<float4> ColorRT;
+
+uint ParticleCount;
+uint TextureSize;
+float CurrentTime;
+float DeltaTime;
+
+// ==================== 헬퍼 함수 ====================
+uint2 ParticleIDToRT(uint particleID)
+{
+    return uint2(particleID % TextureSize, particleID / TextureSize);
+}
+
+
+// =============== 메인 Compute Shader ===============
+[numthreads(64, 1, 1)]
+void MainCS(uint3 ThreadID : SV_DispatchThreadID)
+{
+    uint particleID = ThreadID.x;
+
+    //  Check Range
+    if (particleID >= ParticleCount)
+        return;
+
+    float Stack[64];
+    int StackPtr = 0;
+    float3 position = float3(0, 0, 0);
+    float4 color = float4(1, 1, 1, 1);
+
+    int PC = 0;
+    while (PC < 1024)   //  Maximum Command count
+    {
+        uint opcode = BytecodeBuffer[PC++];
+
+        switch (opcode)
+        {
+            case 0:     //  PUSH_CONST
+            {
+                uint constIndex = BytecodeBuffer[PC++];
+                Stack[StackPtr++] = ConstantsBuffer[constIndex];
+                break;
+            }
+
+            case 1:     //  PUSH_VAR
+            {
+                uint varID = BytecodeBuffer[PC++];
+                if (varID == 0)     //  PARTICLE_ID
+                    Stack[StackPtr++] = (float)particleID;
+                else if (varID == 1)    //  TIME
+                    Stack[StackPtr++] = CurrentTime;
+                break;
+            }
+
+            case 10:    //  ADD
+            {
+                float b = Stack[--StackPtr];
+                float a = Stack[--StackPtr];
+                Stack[StackPtr++] = a + b;
+                break;
+            }
+            
+            case 11:    //  SUB
+            {
+                float b = Stack[--StackPtr];
+                float a = Stack[--StackPtr];
+                Stack[StackPtr++] = a - b;
+                break;
+            }
+
+            case 12:    //  MUL
+            {
+                float b = Stack[--StackPtr];
+                float a = Stack[--StackPtr];
+                Stack[StackPtr++] = a * b;
+                break;
+            }
+
+            case 13:    //  DIV
+            {
+                float b = Stack[--StackPtr];
+                float a = Stack[--StackPtr];
+                Stack[StackPtr++] = a / b;
+                break;
+            }
+
+            case 20:    //  SIN
+            {
+                float a = Stack[--StackPtr];
+                Stack[StackPtr++] = sin(a);
+                break;
+            }
+
+            case 21:    //  COS
+            {
+                float a = Stack[--StackPtr];
+                Stack[StackPtr++] = cos(a);
+                break;
+            }
+
+            case 30:    //  STORE_POS_X
+            {
+                position.x = Stack[--StackPtr];
+                break;
+            }
+            case 31:    //  STORE_POS_Y
+            {
+                position.y = Stack[--StackPtr];
+                break;
+            }
+
+            case 32:    //  STORE_POS_Z
+            {
+                position.z = Stack[--StackPtr];
+                break;
+            }
+
+            case 40:    //  STORE_COLOR_R
+            {
+                color.r = Stack[--StackPtr];
+                break;
+            }
+
+            case 41:    //  STORE_COLOR_G
+            {
+                color.g = Stack[--StackPtr];
+                break;
+            }
+
+            case 42:    //  STORE_COLOR_B
+            {
+                color.b = Stack[--StackPtr];
+                break;
+            }
+
+            case 43:    //  STORE_COLOR_A
+            {
+                color.a = Stack[--StackPtr];
+                break;
+            }
+
+            case 255:   //  HALT
+            {
+                PC = 9999;  //  Loop Break
+                break;
+            }
+        }
+    }
+
+    //  결과를 RenderTarget에 저장
+    uint2 rtCoord = ParticleIDToRT(particleID);
+    PositionRT[rtCoord] = float4(position, 0.0);
+    ColorRT[rtCoord] = color;
+}
