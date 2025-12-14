@@ -1,4 +1,5 @@
 // GPU에서 실행되는 파티클 시뮬레이션 Compute Shader
+// Force recompile v2
 
 #include "/Engine/Public/Platform.ush"
 
@@ -156,6 +157,8 @@ void MainCS(uint3 ThreadID : SV_DispatchThreadID)
 
     //  결과를 RenderTarget에 저장
     uint2 rtCoord = ParticleIDToRT(particleID);
+
+    // ⚠️ 임시 테스트: ColorRT에 Position 데이터 쓰기 (PositionRT 문제 진단용)
     PositionRT[rtCoord] = float4(position, 0.0);
-    ColorRT[rtCoord] = color;
+    ColorRT[rtCoord] = float4(position.x / 100.0, color.g, color.b, 1.0);  // R채널에 position.x 인코딩
 }
