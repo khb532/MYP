@@ -1,6 +1,7 @@
 {
   "hooks": {},
   "includeCoAuthoredBy": false,
+  "alwaysThinkingEnabled": false,
   "permissions":
   {
     "allow":
