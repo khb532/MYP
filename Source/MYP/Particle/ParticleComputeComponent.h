@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "RHI.h"
 #include "ParticleComputeComponent.generated.h"
 
 
@@ -56,7 +57,9 @@ public:
 	
 	
 private:
-	
+	//	GPU Buffer
+	FBufferRHIRef BytecodeBufferRHI;
+	FBufferRHIRef ConstantsBufferRHI;
 	
 	
 	
