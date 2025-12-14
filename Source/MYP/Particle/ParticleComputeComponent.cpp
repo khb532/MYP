@@ -167,26 +167,14 @@ void UParticleComputeComponent::ExecuteSimulation(float deltatime)
 				CreateRenderTarget(ColorRTResource->GetRenderTargetTexture(), TEXT("ColorRT"))
 			);
 
-			// 2. 매 프레임 새 버퍼 생성 및 업로드 (Transient로 캐싱 완전 방지)
-			static int32 FrameCounter = 0;
-			FrameCounter++;
-
+			// 2. 매 프레임 새 버퍼 생성 및 업로드
 			FRDGBufferDesc BytecodeDesc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), BytecodeCopy.Num());
-			FString BytecodeName = FString::Printf(TEXT("ParticleBytecodeBuffer_%d"), FrameCounter);
-			FRDGBufferRef BytecodeBuffer = GraphBuilder.CreateBuffer(BytecodeDesc, *BytecodeName, ERDGBufferFlags::None);
-
-			// ⚠️ PreallocatedBuffer 사용 (즉시 업로드, 캐싱 우회)
-			void* BytecodeDataPtr = RHICmdList.LockBuffer(
-				GraphBuilder.AllocUploadBuffer(BytecodeCopy.Num() * sizeof(uint32), TEXT("BytecodeUpload")).Buffer,
-				0, BytecodeCopy.Num() * sizeof(uint32), RLM_WriteOnly
-			);
-			FMemory::Memcpy(BytecodeDataPtr, BytecodeCopy.GetData(), BytecodeCopy.Num() * sizeof(uint32));
-			RHICmdList.UnlockBuffer(GraphBuilder.AllocUploadBuffer(BytecodeCopy.Num() * sizeof(uint32), TEXT("BytecodeUpload")).Buffer);
+			FRDGBufferRef BytecodeBuffer = GraphBuilder.CreateBuffer(BytecodeDesc, TEXT("ParticleBytecodeBuffer"));
+			GraphBuilder.QueueBufferUpload(BytecodeBuffer, BytecodeCopy.GetData(), BytecodeCopy.Num() * sizeof(uint32), ERDGInitialDataFlags::None);
 
 			FRDGBufferDesc ConstantsDesc = FRDGBufferDesc::CreateStructuredDesc(sizeof(float), ConstantsCopy.Num());
-			FString ConstantsName = FString::Printf(TEXT("ParticleConstantsBuffer_%d"), FrameCounter);
-			FRDGBufferRef ConstantsBuffer = GraphBuilder.CreateBuffer(ConstantsDesc, *ConstantsName);
-			GraphBuilder.QueueBufferUpload(ConstantsBuffer, ConstantsCopy.GetData(), ConstantsCopy.Num() * sizeof(float));
+			FRDGBufferRef ConstantsBuffer = GraphBuilder.CreateBuffer(ConstantsDesc, TEXT("ParticleConstantsBuffer"));
+			GraphBuilder.QueueBufferUpload(ConstantsBuffer, ConstantsCopy.GetData(), ConstantsCopy.Num() * sizeof(float), ERDGInitialDataFlags::None);
 
 			// 3. Shader 파라미터 설정
 			FParticleSimulationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FParticleSimulationCS::FParameters>();
