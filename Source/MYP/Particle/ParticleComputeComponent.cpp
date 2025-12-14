@@ -1,7 +1,7 @@
 ﻿#include "ParticleComputeComponent.h"
 
 #include "MYP.h"
-#include "Kismet/KismetRenderingLibrary.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "RenderingThread.h"
 #include "RHICommandList.h"
 #include "RHIResources.h"
@@ -36,21 +36,40 @@ void UParticleComputeComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 void UParticleComputeComponent::InitializeBuffers(int32 particles)
 {
 	ParticleCount = particles;
-	
 	TextureSize = FMath::CeilToInt(FMath::Sqrt(static_cast<float>(particles)));
-	
-	PositionRT = UKismetRenderingLibrary::CreateRenderTarget2D(GetWorld(), TextureSize, TextureSize, RTF_RGBA16f);
-	ColorRT = UKismetRenderingLibrary::CreateRenderTarget2D(GetWorld(), TextureSize, TextureSize, RTF_RGBA16f);
-	if (!PositionRT || !ColorRT)
+
+	// Position RenderTarget 생성 (UAV 쓰기 가능하도록)
+	PositionRT = NewObject<UTextureRenderTarget2D>(this);
+	if (!PositionRT)
 	{
-		LOGERROR();
+		LOGERRORF(TEXT("Failed to create PositionRT"));
 		return;
 	}
-	
+	PositionRT->RenderTargetFormat = RTF_RGBA16f;
+	PositionRT->ClearColor = FLinearColor::Black;
+	PositionRT->bAutoGenerateMips = false;
+	PositionRT->bCanCreateUAV = true;  // Compute Shader UAV 쓰기 필수
+	PositionRT->InitAutoFormat(TextureSize, TextureSize);
+	PositionRT->UpdateResourceImmediate(true);
+
+	// Color RenderTarget 생성 (UAV 쓰기 가능하도록)
+	ColorRT = NewObject<UTextureRenderTarget2D>(this);
+	if (!ColorRT)
+	{
+		LOGERRORF(TEXT("Failed to create ColorRT"));
+		return;
+	}
+	ColorRT->RenderTargetFormat = RTF_RGBA16f;
+	ColorRT->ClearColor = FLinearColor::Black;
+	ColorRT->bAutoGenerateMips = false;
+	ColorRT->bCanCreateUAV = true;  // Compute Shader UAV 쓰기 필수
+	ColorRT->InitAutoFormat(TextureSize, TextureSize);
+	ColorRT->UpdateResourceImmediate(true);
+
 	BytecodeData.Reserve(4096);
 	ConstantData.Reserve(256);
-	
-	LOGMSGF(TEXT("Initialized %d particles, TextureSize=%d"), ParticleCount, TextureSize);
+
+	LOGMSGF(TEXT("Initialized %d particles, TextureSize=%d x %d"), ParticleCount, TextureSize, TextureSize);
 }
 
 void UParticleComputeComponent::UploadBytecode(const TArray<uint32>& bytecode, const TArray<float>& constants)
@@ -164,5 +183,40 @@ void UParticleComputeComponent::ExecuteSimulation(float deltatime)
 			GraphBuilder.Execute();
 		}
 	);
+}
+
+void UParticleComputeComponent::DebugPrintRenderTarget()
+{
+	if (!PositionRT || !ColorRT)
+	{
+		LOGERRORF(TEXT("RenderTarget not initialized"));
+		return;
+	}
+	
+	FTextureRenderTargetResource* PositionResource = PositionRT->GameThread_GetRenderTargetResource();
+
+	TArray<FColor> PositionData;
+	FIntRect Rect(0, 0, TextureSize, TextureSize);
+	PositionResource->ReadPixels(PositionData, FReadSurfaceDataFlags(), Rect);
+
+	// 처음 10개 파티클만 출력
+	LOGMSGF(TEXT("=== First 10 Particles ==="));
+	for (int32 i = 0; i < FMath::Min(10, ParticleCount); ++i)
+	{
+		int32 x = i % TextureSize;
+		int32 y = i / TextureSize;
+		int32 Index = y * TextureSize + x;
+
+		if (Index < PositionData.Num())
+		{
+			FColor Pixel = PositionData[Index];
+			// RGBA16f → float 변환 (근사치)
+			float PosX = Pixel.R / 255.0f * 1000.0f;  // 스케일 조정
+			float PosY = Pixel.G / 255.0f * 1000.0f;
+			float PosZ = Pixel.B / 255.0f * 1000.0f;
+
+			LOGMSGF(TEXT("Particle[%d]: Pos(%.1f, %.1f, %.1f)"), i, PosX, PosY, PosZ);
+		}
+	}
 }
 

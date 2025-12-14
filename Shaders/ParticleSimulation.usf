@@ -1,5 +1,7 @@
 // GPU에서 실행되는 파티클 시뮬레이션 Compute Shader
 
+#include "/Engine/Public/Platform.ush"
+
 // ==================== 파라미터 ====================
 StructuredBuffer<uint> BytecodeBuffer;
 StructuredBuffer<float> ConstantsBuffer;

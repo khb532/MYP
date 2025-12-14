@@ -33,8 +33,12 @@ public:
 	UTextureRenderTarget2D* GetPositionTexture() const { return PositionRT; }
 	UTextureRenderTarget2D* GetColorTexture() const { return ColorRT; }
 	
+	void DebugPrintRenderTarget();
+	
+	
 	
 private:
+	
 	
 	
 	

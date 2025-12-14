@@ -7,7 +7,7 @@
 		{
 			"Name": "MYP",
 			"Type": "Runtime",
-			"LoadingPhase": "Default",
+			"LoadingPhase": "PostConfigInit",
 			"AdditionalDependencies": [
 				"Engine",
 				"AIModule",

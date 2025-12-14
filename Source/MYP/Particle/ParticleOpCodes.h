@@ -33,6 +33,7 @@ enum class EParticleOpCode : uint8
 	STORE_COLOR_R = 40,			//	Pop 1개, 파티클 Color.R에 저장
 	STORE_COLOR_G = 41,			//	Pop 1개, 파티클 Color.G에 저장
 	STORE_COLOR_B = 42,			//	Pop 1개, 파티클 Color.B에 저장
+	STORE_COLOR_A = 43,			//	Pop 1개, 파티클 Color.A에 저장
 	
 	//	제어 흐름
 	HALT = 255					//	실행 종료
