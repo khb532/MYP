@@ -6,6 +6,10 @@
 #include "RHICommandList.h"
 #include "RHIResources.h"
 #include "RenderResource.h"
+#include "ParticleSimulationShader.h"
+#include "RenderGraphBuilder.h"
+#include "GlobalShader.h"
+#include "ShaderParameterUtils.h"
 
 
 UParticleComputeComponent::UParticleComputeComponent()
@@ -63,43 +67,35 @@ void UParticleComputeComponent::UploadBytecode(const TArray<uint32>& bytecode, c
 	ENQUEUE_RENDER_COMMAND(UploadParticleBytecode)(
 		[this, BytecodeCopy, ConstantsCopy](FRHICommandListImmediate& RHICmdList)
 		{
+			FRDGBuilder GraphBuilder(RHICmdList);
+
 			// 1. Bytecode 버퍼 생성
 			if (BytecodeCopy.Num() > 0)
 			{
-				FRHIBufferCreateDesc BytecodeDesc
-				(
-					TEXT("ParticleBytecodeBuffer"),
-					BytecodeCopy.Num() * sizeof(uint32),
-					sizeof(uint32),
-					EBufferUsageFlags::ShaderResource | EBufferUsageFlags::StructuredBuffer
-				);
-
-				BytecodeBufferRHI = RHICmdList.CreateBuffer(BytecodeDesc);
+				FRDGBufferDesc BytecodeDesc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), BytecodeCopy.Num());
+				FRDGBufferRef BytecodeBuffer = GraphBuilder.CreateBuffer(BytecodeDesc, TEXT("ParticleBytecodeBuffer"));
 
 				// 데이터 업로드
-				void* MappedData = RHICmdList.LockBuffer(BytecodeBufferRHI, 0, BytecodeCopy.Num() * sizeof(uint32), RLM_WriteOnly);
-				FMemory::Memcpy(MappedData, BytecodeCopy.GetData(), BytecodeCopy.Num() * sizeof(uint32));
-				RHICmdList.UnlockBuffer(BytecodeBufferRHI);
+				GraphBuilder.QueueBufferUpload(BytecodeBuffer, BytecodeCopy.GetData(), BytecodeCopy.Num() * sizeof(uint32));
+
+				// Pooled Buffer로 추출
+				GraphBuilder.QueueBufferExtraction(BytecodeBuffer, &BytecodePooledBuffer);
 			}
 
 			// 2. Constants 버퍼 생성
 			if (ConstantsCopy.Num() > 0)
 			{
-				FRHIBufferCreateDesc ConstantsDesc
-				(
-					TEXT("ParticleConstantsBuffer"),
-					ConstantsCopy.Num() * sizeof(float),
-					sizeof(float),
-					EBufferUsageFlags::ShaderResource | EBufferUsageFlags::StructuredBuffer
-				);
-
-				ConstantsBufferRHI = RHICmdList.CreateBuffer(ConstantsDesc);
+				FRDGBufferDesc ConstantsDesc = FRDGBufferDesc::CreateStructuredDesc(sizeof(float), ConstantsCopy.Num());
+				FRDGBufferRef ConstantsBuffer = GraphBuilder.CreateBuffer(ConstantsDesc, TEXT("ParticleConstantsBuffer"));
 
 				// 데이터 업로드
-				void* MappedData = RHICmdList.LockBuffer(ConstantsBufferRHI, 0, ConstantsCopy.Num() * sizeof(float), RLM_WriteOnly);
-				FMemory::Memcpy(MappedData, ConstantsCopy.GetData(), ConstantsCopy.Num() * sizeof(float));
-				RHICmdList.UnlockBuffer(ConstantsBufferRHI);
+				GraphBuilder.QueueBufferUpload(ConstantsBuffer, ConstantsCopy.GetData(), ConstantsCopy.Num() * sizeof(float));
+
+				// Pooled Buffer로 추출
+				GraphBuilder.QueueBufferExtraction(ConstantsBuffer, &ConstantsPooledBuffer);
 			}
+
+			GraphBuilder.Execute();
 		}
 	);
 
@@ -108,6 +104,65 @@ void UParticleComputeComponent::UploadBytecode(const TArray<uint32>& bytecode, c
 
 void UParticleComputeComponent::ExecuteSimulation(float deltatime)
 {
-	
+	if (!PositionRT || !ColorRT || !BytecodePooledBuffer.IsValid() || !ConstantsPooledBuffer.IsValid())
+	{
+		return;
+	}
+
+	// 람다 캡처용 복사본
+	FTextureRenderTargetResource* PositionRTResource = PositionRT->GameThread_GetRenderTargetResource();
+	FTextureRenderTargetResource* ColorRTResource = ColorRT->GameThread_GetRenderTargetResource();
+	TRefCountPtr<FRDGPooledBuffer> BytecodePooledBufferCopy = BytecodePooledBuffer;
+	TRefCountPtr<FRDGPooledBuffer> ConstantsPooledBufferCopy = ConstantsPooledBuffer;
+	uint32 ParticleCountCopy = ParticleCount;
+	uint32 TextureSizeCopy = TextureSize;
+	float CurrentTime = GetWorld()->GetTimeSeconds();
+	float DeltaTimeCopy = deltatime;
+
+	ENQUEUE_RENDER_COMMAND(ExecuteParticleSimulation)(
+		[PositionRTResource, ColorRTResource, BytecodePooledBufferCopy, ConstantsPooledBufferCopy,
+		 ParticleCountCopy, TextureSizeCopy, CurrentTime, DeltaTimeCopy](FRHICommandListImmediate& RHICmdList)
+		{
+			FRDGBuilder GraphBuilder(RHICmdList);
+
+			// 1. RenderTarget을 RDG Texture로 등록
+			FRDGTextureRef PositionTexture = GraphBuilder.RegisterExternalTexture(
+				CreateRenderTarget(PositionRTResource->GetRenderTargetTexture(), TEXT("PositionRT"))
+			);
+			FRDGTextureRef ColorTexture = GraphBuilder.RegisterExternalTexture(
+				CreateRenderTarget(ColorRTResource->GetRenderTargetTexture(), TEXT("ColorRT"))
+			);
+
+			// 2. Buffer를 RDG Buffer로 등록
+			FRDGBufferRef BytecodeBuffer = GraphBuilder.RegisterExternalBuffer(BytecodePooledBufferCopy);
+			FRDGBufferRef ConstantsBuffer = GraphBuilder.RegisterExternalBuffer(ConstantsPooledBufferCopy);
+
+			// 3. Shader 파라미터 설정
+			FParticleSimulationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FParticleSimulationCS::FParameters>();
+			PassParameters->BytecodeBuffer = GraphBuilder.CreateSRV(BytecodeBuffer);
+			PassParameters->ConstantsBuffer = GraphBuilder.CreateSRV(ConstantsBuffer);
+			PassParameters->PositionRT = GraphBuilder.CreateUAV(PositionTexture);
+			PassParameters->ColorRT = GraphBuilder.CreateUAV(ColorTexture);
+			PassParameters->ParticleCount = ParticleCountCopy;
+			PassParameters->TextureSize = TextureSizeCopy;
+			PassParameters->CurrentTime = CurrentTime;
+			PassParameters->DeltaTime = DeltaTimeCopy;
+
+			// 4. Compute Shader 실행
+			TShaderMapRef<FParticleSimulationCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+			FIntVector GroupCount(FMath::DivideAndRoundUp(ParticleCountCopy, 64u), 1, 1);
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("ParticleSimulation"),
+				ComputeShader,
+				PassParameters,
+				GroupCount
+			);
+
+			// 5. RDG 실행
+			GraphBuilder.Execute();
+		}
+	);
 }
 

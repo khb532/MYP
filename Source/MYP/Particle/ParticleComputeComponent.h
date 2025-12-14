@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "RHI.h"
+#include "RenderGraphResources.h"
 #include "ParticleComputeComponent.generated.h"
 
 
@@ -57,9 +58,9 @@ public:
 	
 	
 private:
-	//	GPU Buffer
-	FBufferRHIRef BytecodeBufferRHI;
-	FBufferRHIRef ConstantsBufferRHI;
+	//	GPU Buffer (Render Thread에서만 접근)
+	TRefCountPtr<FRDGPooledBuffer> BytecodePooledBuffer;
+	TRefCountPtr<FRDGPooledBuffer> ConstantsPooledBuffer;
 	
 	
 	
