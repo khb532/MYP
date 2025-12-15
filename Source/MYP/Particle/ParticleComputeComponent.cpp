@@ -86,49 +86,72 @@ void UParticleComputeComponent::UploadBytecode(const TArray<uint32>& bytecode, c
 	}
 	LOGMSGF(TEXT("[UploadBytecode] First bytecodes: %s"), *BytecodeStr);
 
-	// ⚠️ 기존 GPU 버퍼 존재 여부 확인 (RenderTarget 재생성 판단용)
-	bool bNeedRecreateRT = BytecodePooledBuffer.IsValid();
+	// 람다 캡처용 복사본 생성
+	TArray<uint32> BytecodeCopy = bytecode;
+	TArray<float> ConstantsCopy = constants;
 
-	// ⚠️ 기존 GPU 버퍼 명시적 해제 (풀 재사용 방지)
-	// FRDGPooledBuffer가 같은 주소를 재사용하면 RDG가 업로드를 스킵할 수 있음
-	if (BytecodePooledBuffer.IsValid())
-	{
-		LOGMSGF(TEXT("[UploadBytecode] 기존 GPU 버퍼 해제: %p"), BytecodePooledBuffer.GetReference());
-		BytecodePooledBuffer.SafeRelease();
-	}
-	if (ConstantsPooledBuffer.IsValid())
-	{
-		ConstantsPooledBuffer.SafeRelease();
-	}
+	// RHI 직접 업로드 (RDG 우회)
+	ENQUEUE_RENDER_COMMAND(UploadParticleBytecode)(
+		[this, BytecodeCopy, ConstantsCopy](FRHICommandListImmediate& RHICmdList)
+		{
+			// 1. Bytecode 버퍼 초기화 및 업데이트
+			if (BytecodeBuffer.Buffer)
+			{
+				// 기존 버퍼가 있으면 명시적으로 해제 (강제 재생성)
+				BytecodeBuffer.Release();
+				LOGMSGF(TEXT("[RENDER THREAD] BytecodeBuffer 기존 버퍼 해제"));
+			}
 
-	// ⚠️ RenderTarget 재생성 (ReadPixels 캐시 무효화)
-	// ColorRT는 업데이트되지만 PositionRT는 캐시를 읽는 문제 해결
-	// 초기 업로드 시에는 건너뛰기 (bNeedRecreateRT == false)
-	if (PositionRT && ColorRT && bNeedRecreateRT)
-	{
-		LOGMSGF(TEXT("[UploadBytecode] RenderTarget 재생성으로 캐시 무효화"));
+			if (BytecodeCopy.Num() > 0)
+			{
+				uint32 BytecodeSize = BytecodeCopy.Num() * sizeof(uint32);
 
-		// Position RenderTarget 재생성
-		PositionRT = NewObject<UTextureRenderTarget2D>(this);
-		PositionRT->RenderTargetFormat = RTF_RGBA16f;
-		PositionRT->ClearColor = FLinearColor::Black;
-		PositionRT->bAutoGenerateMips = false;
-		PositionRT->bCanCreateUAV = true;
-		PositionRT->InitAutoFormat(TextureSize, TextureSize);
-		PositionRT->UpdateResourceImmediate(true);
+				// FRWBuffer 초기화: Structured Buffer로 설정 (UE 5.6 API)
+				BytecodeBuffer.Initialize(
+					RHICmdList,                 // RHICommandList (첫 번째 인자)
+					TEXT("ParticleBytecodeBuffer"),
+					sizeof(uint32),             // Stride
+					BytecodeCopy.Num(),         // NumElements
+					PF_R32_UINT,                // Format
+					BUF_Static | BUF_ShaderResource  // RHI 플래그
+				);
 
-		// Color RenderTarget 재생성
-		ColorRT = NewObject<UTextureRenderTarget2D>(this);
-		ColorRT->RenderTargetFormat = RTF_RGBA16f;
-		ColorRT->ClearColor = FLinearColor::Black;
-		ColorRT->bAutoGenerateMips = false;
-		ColorRT->bCanCreateUAV = true;
-		ColorRT->InitAutoFormat(TextureSize, TextureSize);
-		ColorRT->UpdateResourceImmediate(true);
-	}
+				// 데이터 업로드 (RHI Lock/Unlock 직접 사용)
+				void* MappedData = RHICmdList.LockBuffer(BytecodeBuffer.Buffer, 0, BytecodeSize, RLM_WriteOnly);
+				FMemory::Memcpy(MappedData, BytecodeCopy.GetData(), BytecodeSize);
+				RHICmdList.UnlockBuffer(BytecodeBuffer.Buffer);
 
-	// ⚠️ FRDGPooledBuffer 방식은 폐기
-	// ExecuteSimulation에서 BytecodeData/ConstantData를 직접 사용함
+				LOGMSGF(TEXT("[RENDER THREAD] BytecodeBuffer 업로드 완료: %d instructions"), BytecodeCopy.Num());
+			}
+
+			// 2. Constants 버퍼도 동일하게 처리
+			if (ConstantsBuffer.Buffer)
+			{
+				ConstantsBuffer.Release();
+				LOGMSGF(TEXT("[RENDER THREAD] ConstantsBuffer 기존 버퍼 해제"));
+			}
+
+			if (ConstantsCopy.Num() > 0)
+			{
+				uint32 ConstantsSize = ConstantsCopy.Num() * sizeof(float);
+
+				ConstantsBuffer.Initialize(
+					RHICmdList,                 // RHICommandList (첫 번째 인자)
+					TEXT("ParticleConstantsBuffer"),
+					sizeof(float),
+					ConstantsCopy.Num(),
+					PF_R32_FLOAT,
+					BUF_Static | BUF_ShaderResource
+				);
+
+				void* MappedData = RHICmdList.LockBuffer(ConstantsBuffer.Buffer, 0, ConstantsSize, RLM_WriteOnly);
+				FMemory::Memcpy(MappedData, ConstantsCopy.GetData(), ConstantsSize);
+				RHICmdList.UnlockBuffer(ConstantsBuffer.Buffer);
+
+				LOGMSGF(TEXT("[RENDER THREAD] ConstantsBuffer 업로드 완료: %d constants"), ConstantsCopy.Num());
+			}
+		}
+	);
 
 	LOGMSGF(TEXT("[GAME THREAD] Bytecode updated: %d instructions, %d constants"), bytecode.Num(), constants.Num());
 }
@@ -140,13 +163,20 @@ void UParticleComputeComponent::ExecuteSimulation(float deltatime)
 		return;
 	}
 
+	// 버퍼 유효성 검사 (UploadBytecode가 먼저 호출되어야 함)
+	if (!BytecodeBuffer.Buffer || !ConstantsBuffer.Buffer)
+	{
+		LOGERRORF(TEXT("ExecuteSimulation: Buffers not initialized. Call UploadBytecode first."));
+		return;
+	}
+
 	// 람다 캡처용 복사본
 	FTextureRenderTargetResource* PositionRTResource = PositionRT->GameThread_GetRenderTargetResource();
 	FTextureRenderTargetResource* ColorRTResource = ColorRT->GameThread_GetRenderTargetResource();
 
-	// ⚠️ Pooled Buffer 대신 BytecodeData/ConstantData를 직접 복사 (매 프레임 업로드)
-	TArray<uint32> BytecodeCopy = BytecodeData;
-	TArray<float> ConstantsCopy = ConstantData;
+	// ⚠️ FRWBuffer SRV 캡처 (UE 5.6에서는 SRV를 직접 사용)
+	FShaderResourceViewRHIRef BytecodeSRV = BytecodeBuffer.SRV;
+	FShaderResourceViewRHIRef ConstantsSRV = ConstantsBuffer.SRV;
 
 	uint32 ParticleCountCopy = ParticleCount;
 	uint32 TextureSizeCopy = TextureSize;
@@ -154,7 +184,7 @@ void UParticleComputeComponent::ExecuteSimulation(float deltatime)
 	float DeltaTimeCopy = deltatime;
 
 	ENQUEUE_RENDER_COMMAND(ExecuteParticleSimulation)(
-		[PositionRTResource, ColorRTResource, BytecodeCopy, ConstantsCopy,
+		[PositionRTResource, ColorRTResource, BytecodeSRV, ConstantsSRV,
 		 ParticleCountCopy, TextureSizeCopy, CurrentTime, DeltaTimeCopy](FRHICommandListImmediate& RHICmdList)
 		{
 			FRDGBuilder GraphBuilder(RHICmdList);
@@ -167,19 +197,15 @@ void UParticleComputeComponent::ExecuteSimulation(float deltatime)
 				CreateRenderTarget(ColorRTResource->GetRenderTargetTexture(), TEXT("ColorRT"))
 			);
 
-			// 2. 매 프레임 새 버퍼 생성 및 업로드
-			FRDGBufferDesc BytecodeDesc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), BytecodeCopy.Num());
-			FRDGBufferRef BytecodeBuffer = GraphBuilder.CreateBuffer(BytecodeDesc, TEXT("ParticleBytecodeBuffer"));
-			GraphBuilder.QueueBufferUpload(BytecodeBuffer, BytecodeCopy.GetData(), BytecodeCopy.Num() * sizeof(uint32), ERDGInitialDataFlags::None);
-
-			FRDGBufferDesc ConstantsDesc = FRDGBufferDesc::CreateStructuredDesc(sizeof(float), ConstantsCopy.Num());
-			FRDGBufferRef ConstantsBuffer = GraphBuilder.CreateBuffer(ConstantsDesc, TEXT("ParticleConstantsBuffer"));
-			GraphBuilder.QueueBufferUpload(ConstantsBuffer, ConstantsCopy.GetData(), ConstantsCopy.Num() * sizeof(float), ERDGInitialDataFlags::None);
+			// 2. FRWBuffer의 SRV를 Shader Parameter에 직접 바인딩 (RDG 우회)
+			// RDG CreateSRV는 사용하지 않고, RHI SRV를 직접 전달
+			// 이는 Legacy 방식이지만 FRWBuffer의 런타임 업데이트를 보장
 
 			// 3. Shader 파라미터 설정
 			FParticleSimulationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FParticleSimulationCS::FParameters>();
-			PassParameters->BytecodeBuffer = GraphBuilder.CreateSRV(BytecodeBuffer);
-			PassParameters->ConstantsBuffer = GraphBuilder.CreateSRV(ConstantsBuffer);
+			// RHI SRV를 RDG 파라미터에 직접 할당 (타입 호환 확인 필요)
+			PassParameters->BytecodeBuffer = BytecodeSRV;
+			PassParameters->ConstantsBuffer = ConstantsSRV;
 			PassParameters->PositionRT = GraphBuilder.CreateUAV(PositionTexture);
 			PassParameters->ColorRT = GraphBuilder.CreateUAV(ColorTexture);
 			PassParameters->ParticleCount = ParticleCountCopy;
@@ -212,15 +238,19 @@ void UParticleComputeComponent::DebugPrintRenderTarget()
 		LOGERRORF(TEXT("RenderTarget not initialized"));
 		return;
 	}
-	
+
 	FTextureRenderTargetResource* PositionResource = PositionRT->GameThread_GetRenderTargetResource();
 	FTextureRenderTargetResource* ColorResource = ColorRT->GameThread_GetRenderTargetResource();
 
-	TArray<FColor> PositionData;
-	TArray<FColor> ColorData;
+	// ⚠️ RGBA16f 포맷을 제대로 읽기 위해 FFloat16Color 사용
+	TArray<FFloat16Color> PositionData;
+	TArray<FFloat16Color> ColorData;
 	FIntRect Rect(0, 0, TextureSize, TextureSize);
-	PositionResource->ReadPixels(PositionData, FReadSurfaceDataFlags(), Rect);
-	ColorResource->ReadPixels(ColorData, FReadSurfaceDataFlags(), Rect);
+
+	// ReadFloat16Pixels로 RGBA16f 데이터를 정확히 읽음
+	// UE 5.6 API: ReadFloat16Pixels(OutData, Flags, Rect)
+	PositionResource->ReadFloat16Pixels(PositionData, FReadSurfaceDataFlags(), Rect);
+	ColorResource->ReadFloat16Pixels(ColorData, FReadSurfaceDataFlags(), Rect);
 
 	// 처음 3개 파티클만 출력
 	LOGMSGF(TEXT("=== First 3 Particles ==="));
@@ -232,16 +262,20 @@ void UParticleComputeComponent::DebugPrintRenderTarget()
 
 		if (Index < PositionData.Num() && Index < ColorData.Num())
 		{
-			FColor PosPix = PositionData[Index];
-			FColor ColPix = ColorData[Index];
+			FFloat16Color PosPix = PositionData[Index];
+			FFloat16Color ColPix = ColorData[Index];
 
-			// RGBA16f → float 변환 (근사치)
-			float PosX = PosPix.R / 255.0f * 1000.0f;  // 스케일 조정
-			float PosY = PosPix.G / 255.0f * 1000.0f;
-			float PosZ = PosPix.B / 255.0f * 1000.0f;
+			// FFloat16 → float 변환 (정확한 값)
+			float PosX = PosPix.R.GetFloat();
+			float PosY = PosPix.G.GetFloat();
+			float PosZ = PosPix.B.GetFloat();
 
-			LOGMSGF(TEXT("Particle[%d]: Pos(%.1f, %.1f, %.1f) PosRaw(%d,%d,%d,%d) Color(%d,%d,%d)"),
-				i, PosX, PosY, PosZ, PosPix.R, PosPix.G, PosPix.B, PosPix.A, ColPix.R, ColPix.G, ColPix.B);
+			float ColR = ColPix.R.GetFloat();
+			float ColG = ColPix.G.GetFloat();
+			float ColB = ColPix.B.GetFloat();
+
+			LOGMSGF(TEXT("Particle[%d]: Pos(%.2f, %.2f, %.2f) Color(%.2f, %.2f, %.2f)"),
+				i, PosX, PosY, PosZ, ColR, ColG, ColB);
 		}
 	}
 }

@@ -4,6 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "RHI.h"
 #include "RenderGraphResources.h"
+#include "RenderResource.h"  // FRWBuffer를 위한 헤더
 #include "ParticleComputeComponent.generated.h"
 
 
@@ -62,9 +63,10 @@ public:
 	
 	
 private:
-	//	GPU Buffer (Render Thread에서만 접근)
-	TRefCountPtr<FRDGPooledBuffer> BytecodePooledBuffer;
-	TRefCountPtr<FRDGPooledBuffer> ConstantsPooledBuffer;
+	//	GPU Buffer (RHI 직접 관리 - RDG Pooling 우회)
+	//	FRWBuffer는 FRHIBuffer와 SRV/UAV를 함께 관리하는 Wrapper
+	FRWBuffer BytecodeBuffer;
+	FRWBuffer ConstantsBuffer;
 	
 	
 	

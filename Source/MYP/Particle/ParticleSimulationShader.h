@@ -11,10 +11,10 @@ class FParticleSimulationCS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FParticleSimulationCS);
 	SHADER_USE_PARAMETER_STRUCT(FParticleSimulationCS, FGlobalShader)
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		//	입력 버퍼 (ReadOnly)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, BytecodeBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float>, ConstantsBuffer)
-	
+		//	입력 버퍼 (ReadOnly) - RHI SRV 직접 사용
+		SHADER_PARAMETER_SRV(StructuredBuffer<uint>, BytecodeBuffer)
+		SHADER_PARAMETER_SRV(StructuredBuffer<float>, ConstantsBuffer)
+
 		//	출력 텍스처 (R/W)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, PositionRT)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, ColorRT)

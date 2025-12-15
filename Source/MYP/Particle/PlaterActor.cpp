@@ -144,18 +144,18 @@ void APlaterActor::BeginPlay()
 
 	}, 5.f, false);
 
-	//	7초 후: Render Thread 동기화 및 변경된 바이트코드 결과 디버그 출력
-	FTimerHandle h_timer7;
-	GetWorld()->GetTimerManager().SetTimer(h_timer7, [this]()
+	//	10초 후: Render Thread 동기화 및 변경된 바이트코드 결과 디버그 출력
+	FTimerHandle h_timer10;
+	GetWorld()->GetTimerManager().SetTimer(h_timer10, [this]()
 	{
-		LOGMSGF(TEXT("=== [7초] Render Thread 강제 동기화 후 결과 확인 ==="));
+		LOGMSGF(TEXT("=== [10초] Render Thread 강제 동기화 후 결과 확인 ==="));
 
 		// Render Thread의 모든 명령 완료 대기
 		FlushRenderingCommands();
 
 		ComputeComponent->DebugPrintRenderTarget();
 		LOGMSGF(TEXT("=== 검증: Particle[0]=0, Particle[1]=1, Particle[2]=2로 변경되었는지 확인 (MUL 없이 PUSH_VAR만) ==="));
-	}, 7.f, false);
+	}, 10.f, false);
 }
 
 void APlaterActor::Tick(float DeltaTime)
