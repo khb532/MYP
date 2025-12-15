@@ -192,30 +192,44 @@ void UParticleComputeComponent::DebugPrintRenderTarget()
 		LOGERRORF(TEXT("RenderTarget not initialized"));
 		return;
 	}
-	
+
 	FTextureRenderTargetResource* PositionResource = PositionRT->GameThread_GetRenderTargetResource();
+	FTextureRenderTargetResource* ColorResource = ColorRT->GameThread_GetRenderTargetResource();
 
-	TArray<FColor> PositionData;
+	// ⚠️ RGBA16f 포맷을 제대로 읽기 위해 FFloat16Color 사용
+	TArray<FFloat16Color> PositionData;
+	TArray<FFloat16Color> ColorData;
 	FIntRect Rect(0, 0, TextureSize, TextureSize);
-	PositionResource->ReadPixels(PositionData, FReadSurfaceDataFlags(), Rect);
 
-	// 처음 10개 파티클만 출력
-	LOGMSGF(TEXT("=== First 10 Particles ==="));
-	for (int32 i = 0; i < FMath::Min(10, ParticleCount); ++i)
+	// ReadFloat16Pixels로 RGBA16f 데이터를 정확히 읽음
+	// UE 5.6 API: ReadFloat16Pixels(OutData, Flags, Rect)
+	PositionResource->ReadFloat16Pixels(PositionData, FReadSurfaceDataFlags(), Rect);
+	ColorResource->ReadFloat16Pixels(ColorData, FReadSurfaceDataFlags(), Rect);
+
+	// 처음 3개 파티클만 출력
+	LOGMSGF(TEXT("=== First 3 Particles ==="));
+	for (int32 i = 0; i < FMath::Min(3, ParticleCount); ++i)
 	{
 		int32 x = i % TextureSize;
 		int32 y = i / TextureSize;
 		int32 Index = y * TextureSize + x;
 
-		if (Index < PositionData.Num())
+		if (Index < PositionData.Num() && Index < ColorData.Num())
 		{
-			FColor Pixel = PositionData[Index];
-			// RGBA16f → float 변환 (근사치)
-			float PosX = Pixel.R / 255.0f * 1000.0f;  // 스케일 조정
-			float PosY = Pixel.G / 255.0f * 1000.0f;
-			float PosZ = Pixel.B / 255.0f * 1000.0f;
+			FFloat16Color PosPix = PositionData[Index];
+			FFloat16Color ColPix = ColorData[Index];
 
-			LOGMSGF(TEXT("Particle[%d]: Pos(%.1f, %.1f, %.1f)"), i, PosX, PosY, PosZ);
+			// FFloat16 → float 변환 (정확한 값)
+			float PosX = PosPix.R.GetFloat();
+			float PosY = PosPix.G.GetFloat();
+			float PosZ = PosPix.B.GetFloat();
+
+			float ColR = ColPix.R.GetFloat();
+			float ColG = ColPix.G.GetFloat();
+			float ColB = ColPix.B.GetFloat();
+
+			LOGMSGF(TEXT("Particle[%d]: Pos(%.2f, %.2f, %.2f) Color(%.2f, %.2f, %.2f)"),
+				i, PosX, PosY, PosZ, ColR, ColG, ColB);
 		}
 	}
 }
