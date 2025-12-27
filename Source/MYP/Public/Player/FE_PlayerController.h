@@ -11,7 +11,7 @@ class MYP_API AFE_PlayerController : public APlayerController
 	
 	/* Method */
 public:
-
+	virtual void OnPossess(APawn* InPawn) override;
 		
 
 
