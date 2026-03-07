@@ -14,16 +14,14 @@
 
 ### 3. 거리 표지판
 - 액터: `Source/MYP/cod/DistanceSign.h/.cpp` (`ADistanceSign`)
-- 현재 상태: `UStaticMeshComponent Mesh` 선언만 있음, 구현 미완
-- [ ] `ADistanceSign` 구현
-  - `UTextRenderComponent` 추가 (주석처리된 TextRender 대체)
-  - `BeginPlay`에서 거리 텍스트 자동 표시
-- [ ] BP 생성 후 레벨 배치 (원점 기준, X축)
-  - 10m → X: 1000
-  - 20m → X: 2000
-  - 50m → X: 5000
-  - 100m → X: 10000
-  - 200m → X: 20000
+- [x] `ADistanceSign` 구현 완료
+  - `USceneComponent Root` 를 실제 루트로, `Mesh` / `TextRender` 를 형제로 어태치 (스케일 분리)
+  - `UTextRenderComponent TextRender` 추가
+  - `BeginPlay`에서 X좌표 → m 변환 (`/ 100.f`), 소수점 1자리 포맷 (`200.5M`)
+- [x] BP 생성 후 레벨 배치 확인
+- [x] 스타팅 라인 (0,0,0 기준 빨간 Plane) 배치
+  - Plane Scale `X=0.1, Y=폭에 맞게`, Z=1 (Z-fighting 방지)
+  - 빨간 머티리얼 적용
 
 ### 4. 탄도 테스트 준비
 - [ ] `BP_Bullet` → `bDrawDebug = true`
