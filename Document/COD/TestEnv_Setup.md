@@ -1,5 +1,11 @@
 # COD 탄도 테스트 환경 구축
 
+## 개요
+
+- **소스 프로젝트**: `E:\Workspace\Team\COD_CloneProject` (팀 COD 클론)
+- **대상 프로젝트**: `E:\Workspace\Unreal\MYP` (개인 프로젝트)
+- **작업 목적**: COD 클론의 탄도 시스템(`BulletActor`, `WeaponBase`)을 개인 프로젝트에 이식하고 탄도 동작을 테스트하는 환경 구축
+
 ## TODO
 
 ### 1. 코드 이식
