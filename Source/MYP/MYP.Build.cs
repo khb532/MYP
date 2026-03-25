@@ -37,7 +37,14 @@ public class MYP : ModuleRules
 			"MYP/Variant_SideScrolling/AI",
 			"MYP/Variant_SideScrolling/Gameplay",
 			"MYP/Variant_SideScrolling/Interfaces",
-			"MYP/Variant_SideScrolling/UI"
+			"MYP/Variant_SideScrolling/UI",
+			"MYP/TP_FirstPerson",
+			"MYP/TP_FirstPerson/Variant_Horror",
+			"MYP/TP_FirstPerson/Variant_Horror/UI",
+			"MYP/TP_FirstPerson/Variant_Shooter",
+			"MYP/TP_FirstPerson/Variant_Shooter/AI",
+			"MYP/TP_FirstPerson/Variant_Shooter/UI",
+			"MYP/TP_FirstPerson/Variant_Shooter/Weapons"
 		});
 		
 		// 모듈 포함 경로 정리: Public/Private 및 모듈 루트(MYP.h 접근) 추가
