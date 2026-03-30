@@ -1,6 +1,7 @@
 ﻿#include "MYP.h"
 #include "COD_ProjectileMovementComponent.h"
 
+
 /*
  * ============================================================
  *  탄도 공학 설계 메모 (프로토타입 v1)
@@ -44,16 +45,26 @@ void UCOD_ProjectileMovementComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// TODO [BP-1] Owner 유효성 검사
-	// AActor* Owner = GetOwner();
-	// if (!IsValid(Owner)) { LOGERRORF(TEXT("Owner is null")); SetComponentTickEnabled(false); return; }
+	// [BP-1] Owner 유효성 검사
+	AActor* Owner = GetOwner();
+	if (!IsValid(Owner))
+	{
+		LOGERRORF(TEXT("Not Detected Owner"));
+		SetComponentTickEnabled(false);
+		return;
+	}
 
-	// TODO [BP-2] UpdatedComponent 바인딩
-	// UpdatedComponent = Owner->GetRootComponent();
-	// if (!UpdatedComponent) { LOGERRORF(TEXT("RootComponent is null")); SetComponentTickEnabled(false); return; }
-
-	// TODO [BP-3] 초기 속도 복사
-	// Velocity = InitVelocity;
+	// [BP-2] UpdatedComponent 바인딩
+	UpdatedComponent = Owner->GetRootComponent();
+	if (!IsValid(UpdatedComponent))
+	{
+		LOGERRORF(TEXT("Not  Set UpdatedComponent"));
+		SetComponentTickEnabled(false);
+		return;
+	}
+	
+	// [BP-3] 초기 속도 복사
+	Velocity = GetOwner()->GetActorForwardVector() * InitSpeed;
 }
 
 void UCOD_ProjectileMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
@@ -61,33 +72,54 @@ void UCOD_ProjectileMovementComponent::TickComponent(float DeltaTime, ELevelTick
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// TODO [TICK-1] 유효성 검사
-	// if (!IsValid(UpdatedComponent) || !IsValid(GetOwner()) || !GetWorld()) return;
+	// [TICK-1] 유효성 검사
+	if (!IsValid(UpdatedComponent))
+	{
+		LOGERRORF(TEXT("Not Detected UpdatedComponent"));
+		return;
+	}
+	
+	if (!IsValid(GetOwner())) 
+	{
+		LOGERRORF(TEXT("Not Detected Owner"));
+		return;
+	}
+		
+	if (!IsValid(GetWorld()))
+	{
+		LOGERRORF(TEXT("Not Detected World"));
+		return;
+	}
+	
 
-	// TODO [TICK-2] 물리 적분
-	// FVector Acceleration = FVector(0.f, 0.f, -GravityScale * 980.0f);
-	// Velocity += Acceleration * DeltaTime;
-	// FVector Delta  = Velocity * DeltaTime;
-	// FVector NewPos = UpdatedComponent->GetComponentLocation() + Delta;
+	// [TICK-2] 물리 적분
+	FVector Accel = {0.f, 0.f, -GravityScale * 980.f};
+	FVector Delta = Velocity * DeltaTime;
+	Velocity += Accel * DeltaTime;
+	FVector NewPos = UpdatedComponent->GetComponentLocation() + Delta;
 
-	// TODO [TICK-3] SweepSingleByChannel
-	// FCollisionShape SweepShape = FCollisionShape::MakeSphere(5.0f);
-	// FCollisionQueryParams QueryParams;
-	// QueryParams.AddIgnoredActor(GetOwner());
-	// QueryParams.bTraceComplex = false;
-	//
-	// FHitResult HitResult;
-	// bool bHit = GetWorld()->SweepSingleByChannel(
-	//     HitResult, UpdatedComponent->GetComponentLocation(), NewPos,
-	//     FQuat::Identity, ECC_Visibility, SweepShape, QueryParams);
+	// [TICK-3] SweepSingleByChannel
+	
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(GetOwner());
+	Params.bTraceComplex = false;
+	
+	FHitResult HitResult;
+	bool bHit = GetWorld()->SweepSingleByChannel(HitResult, UpdatedComponent->GetComponentLocation(), NewPos, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(5.f), Params);
 
-	// TODO [TICK-4] HitResult 처리
-	// if (bHit)
-	// {
-	//     LOGMSGF(TEXT("Hit: %s"), HitResult.GetActor() ? *HitResult.GetActor()->GetName() : TEXT("None"));
-	//     GetOwner()->Destroy();
-	//     return;
-	// }
-	// UpdatedComponent->SetWorldLocation(NewPos, false, nullptr, ETeleportType::None);
+	// [TICK-4] HitResult 처리
+	if(bHit)
+	{
+		if (OnHitDelegate.IsBound())
+			OnHitDelegate.Broadcast(HitResult);
+		else
+		{
+			LOGERRORF(TEXT("Hitting Actor Not Bound"));
+		}
+	}
+	else
+	{
+		UpdatedComponent->SetWorldLocation(NewPos, false, nullptr, ETeleportType::None);
+	}
 }
 

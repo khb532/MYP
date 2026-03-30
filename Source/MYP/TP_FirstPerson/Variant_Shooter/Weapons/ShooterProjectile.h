@@ -7,9 +7,10 @@
 #include "ShooterProjectile.generated.h"
 
 class USphereComponent;
-class UProjectileMovementComponent;
+// class UProjectileMovementComponent;
 class ACharacter;
 class UPrimitiveComponent;
+class UCOD_ProjectileMovementComponent;
 
 /**
  *  Simple projectile class for a first person shooter game
@@ -25,7 +26,7 @@ class MYP_API AShooterProjectile : public AActor
 
 	/** Handles movement for the projectile */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	UProjectileMovementComponent* ProjectileMovement;
+	UCOD_ProjectileMovementComponent* ProjectileMovement;
 
 protected:
 
@@ -89,7 +90,7 @@ protected:
 	virtual void EndPlay(EEndPlayReason::Type EndPlayReason) override;
 
 	/** Handles collision */
-	virtual void NotifyHit(class UPrimitiveComponent* MyComp, AActor* Other, UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit) override;
+	// virtual void NotifyHit(class UPrimitiveComponent* MyComp, AActor* Other, UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit) override;
 
 protected:
 
@@ -105,5 +106,8 @@ protected:
 
 	/** Called from the destruction timer to destroy this projectile */
 	void OnDeferredDestruction();
+	
+	UFUNCTION()
+	void OnProjectileHit(const FHitResult& Hit);
 
 };
