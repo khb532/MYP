@@ -1,5 +1,6 @@
 ﻿#include "MYP.h"
 #include "COD_ProjectileMovementComponent.h"
+#include "DrawDebugHelpers.h"
 
 
 /*
@@ -119,6 +120,7 @@ void UCOD_ProjectileMovementComponent::TickComponent(float DeltaTime, ELevelTick
 	}
 	else
 	{
+		DrawDebugLine(GetWorld(), UpdatedComponent->GetComponentLocation(), NewPos, FColor::Red, false, 2.f);
 		UpdatedComponent->SetWorldLocation(NewPos, false, nullptr, ETeleportType::None);
 	}
 }

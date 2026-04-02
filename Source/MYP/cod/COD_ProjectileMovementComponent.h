@@ -4,7 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "COD_ProjectileMovementComponent.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHitDelegate, const FHitResult&, HitResult);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHitDelegate, const FHitResult&, Hit);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class MYP_API UCOD_ProjectileMovementComponent : public UActorComponent
