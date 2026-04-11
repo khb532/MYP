@@ -1,46 +1,18 @@
-﻿#include "MYP.h"
-#include "COD_ProjectileMovementComponent.h"
+﻿#include "COD_ProjMoveComponent_Base.h"
+#include "MYP.h"
 #include "DrawDebugHelpers.h"
+#include "VectorUtil.h"
 
-
-/*
- * ============================================================
- *  탄도 공학 설계 메모 (프로토타입 v1)
- * ============================================================
- *  - 발사체는 매 프레임 "자신이 가진 속도벡터"로 스스로 움직인다.
- *
- *  [ 프로토타입 적용 탄도식: 중력만 ]
- *  매 프레임 속도벡터에 중력 가속도를 적분한다.
- *
- *      V(t + dt) = V(t) + A * dt
- *
- *      A = { 0, 0, -GravityScale * 980.0f }    (단위: cm/s²)
- *
- *  이동 델타:
- *
- *      Delta = V(t) * dt
- *
- *  이후 Delta 방향으로 SweepSingleByChannel 을 쏴서
- *  충돌 여부를 판정한 뒤 위치를 확정한다.
- *
- *  [ 미사용 (추후 확장) ]
- *  - AirDrag : 공기저항 (현재 헤더에 선언만 된 상태)
- *  - 스핀 드리프트, 바람 등
- *
- * ============================================================
- */
-
-
-UCOD_ProjectileMovementComponent::UCOD_ProjectileMovementComponent()
+UCOD_ProjMoveComponent_Base::UCOD_ProjMoveComponent_Base()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 }
 
-void UCOD_ProjectileMovementComponent::BeginPlay()
+void UCOD_ProjMoveComponent_Base::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// [BP-1] Owner 유효성 검사
+	// Owner 유효성 검사
 	AActor* Owner = GetOwner();
 	if (!IsValid(Owner))
 	{
@@ -49,7 +21,7 @@ void UCOD_ProjectileMovementComponent::BeginPlay()
 		return;
 	}
 
-	// [BP-2] UpdatedComponent 바인딩
+	// UpdatedComponent 바인딩
 	UpdatedComponent = Owner->GetRootComponent();
 	if (!IsValid(UpdatedComponent))
 	{
@@ -58,16 +30,14 @@ void UCOD_ProjectileMovementComponent::BeginPlay()
 		return;
 	}
 	
-	// [BP-3] 초기 속도 복사
-	Velocity = GetOwner()->GetActorForwardVector() * InitSpeed;
 }
 
-void UCOD_ProjectileMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
+void UCOD_ProjMoveComponent_Base::TickComponent(float DeltaTime, ELevelTick TickType,
                                                      FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// [TICK-1] 유효성 검사
+	// 유효성 검사
 	if (!IsValid(UpdatedComponent))
 	{
 		LOGERRORF(TEXT("Not Detected UpdatedComponent"));
@@ -87,12 +57,12 @@ void UCOD_ProjectileMovementComponent::TickComponent(float DeltaTime, ELevelTick
 	}
 	
 
-	// [TICK-2] 물리 적분
+	// 물리 적분
+	Velocity += ComputeAcceleration(DeltaTime) * DeltaTime;
 	FVector Delta = Velocity * DeltaTime;
-	Velocity += ApplyGravity() * DeltaTime;
 	FVector NewPos = UpdatedComponent->GetComponentLocation() + Delta;
 	
-	// [TICK-3] SweepSingleByChannel
+	// SweepSingleByChannel
 	FCollisionQueryParams Params;
 	Params.AddIgnoredActor(GetOwner());
 	Params.bTraceComplex = false;
@@ -100,7 +70,7 @@ void UCOD_ProjectileMovementComponent::TickComponent(float DeltaTime, ELevelTick
 	FHitResult HitResult;
 	bool bHit = GetWorld()->SweepSingleByChannel(HitResult, UpdatedComponent->GetComponentLocation(), NewPos, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(5.f), Params);
 
-	// [TICK-4] HitResult 처리
+	// Hit
 	if(bHit)
 	{
 		if (OnHitDelegate.IsBound())
@@ -109,22 +79,32 @@ void UCOD_ProjectileMovementComponent::TickComponent(float DeltaTime, ELevelTick
 		{
 			LOGERRORF(TEXT("Hitting Actor Not Bound"));
 		}
+		
+		SetComponentTickEnabled(false);
 	}
 	else
 	{
+		TrajectoryPoints.Add(NewPos);
 		DrawDebugLine(GetWorld(), UpdatedComponent->GetComponentLocation(), NewPos, FColor::Red, false, 2.f);
 		UpdatedComponent->SetWorldLocation(NewPos, false, nullptr, ETeleportType::None);
-		UpdatedComponent->SetWorldRotation(CalcRotation(Velocity), false, nullptr, ETeleportType::None);
+		UpdatedComponent->SetWorldRotation(SyncRotation(Velocity), false, nullptr, ETeleportType::None);
 	}
 }
 
-FVector UCOD_ProjectileMovementComponent::ApplyGravity()
+void UCOD_ProjMoveComponent_Base::InitBulletData(float _Mass, float _Cd, float _Area, float _MuzzleVelocity, float _WeaponMultiplier)
 {
-	FVector Accel = {0.f, 0.f, -GravityScale * 980.f};
-	return Accel;
+	Mass = _Mass;
+	Cd = _Cd;
+	CrossSectionArea = _Area;
+	Velocity = GetOwner()->GetActorForwardVector() * (_MuzzleVelocity * _WeaponMultiplier);
 }
 
-FRotator UCOD_ProjectileMovementComponent::CalcRotation(FVector _Velocity)
+FVector UCOD_ProjMoveComponent_Base::ComputeAcceleration(float DeltaTime)
+{
+	return FVector(0.f, 0.f, -980.f);
+}
+
+FRotator UCOD_ProjMoveComponent_Base::SyncRotation(FVector _Velocity)
 {
 	// 회전 동기화
 	FRotator Rot;

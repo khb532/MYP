@@ -4,7 +4,7 @@
 #include "ShooterProjectile.h"
 #include "Components/SphereComponent.h"
 // #include "GameFramework/ProjectileMovementComponent.h"
-#include "cod/COD_ProjectileMovementComponent.h"
+#include "cod/COD_ProjMoveComponent_Base.h"
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/DamageType.h"
@@ -27,7 +27,7 @@ AShooterProjectile::AShooterProjectile()
 	CollisionComponent->CanCharacterStepUpOn = ECanBeCharacterBase::ECB_No;
 
 	// create the projectile movement component. No need to attach it because it's not a Scene Component
-	ProjectileMovement = CreateDefaultSubobject<UCOD_ProjectileMovementComponent>(TEXT("Projectile Movement"));
+	ProjectileMovement = CreateDefaultSubobject<UCOD_ProjMoveComponent_Base>(TEXT("Projectile Movement"));
 	/*
 	 *ProjectileMovement->InitialSpeed = 3000.0f;
 	ProjectileMovement->MaxSpeed = 3000.0f;

@@ -10,7 +10,7 @@ class USphereComponent;
 // class UProjectileMovementComponent;
 class ACharacter;
 class UPrimitiveComponent;
-class UCOD_ProjectileMovementComponent;
+class UCOD_ProjMoveComponent_Base;
 
 /**
  *  Simple projectile class for a first person shooter game
@@ -26,7 +26,7 @@ class MYP_API AShooterProjectile : public AActor
 
 	/** Handles movement for the projectile */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	UCOD_ProjectileMovementComponent* ProjectileMovement;
+	UCOD_ProjMoveComponent_Base* ProjectileMovement;
 
 protected:
 
