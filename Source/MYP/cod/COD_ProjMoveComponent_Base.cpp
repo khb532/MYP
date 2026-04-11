@@ -36,6 +36,9 @@ void UCOD_ProjMoveComponent_Base::TickComponent(float DeltaTime, ELevelTick Tick
                                                      FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	
+	// LOGMSGF(TEXT("Tick 동작중 Velocity: %s"), *Velocity.ToString());
+	
 
 	// 유효성 검사
 	if (!IsValid(UpdatedComponent))
@@ -73,6 +76,10 @@ void UCOD_ProjMoveComponent_Base::TickComponent(float DeltaTime, ELevelTick Tick
 	// Hit
 	if(bHit)
 	{
+		LOGWARNF(TEXT("Hit 발생: %s"), *GetNameSafe(HitResult.GetActor()));
+		DrawDebugLine(GetWorld(), UpdatedComponent->GetComponentLocation(), HitResult.ImpactPoint, FColor::Red, false, 2.f);
+		UpdatedComponent->SetWorldLocation(HitResult.ImpactPoint, false, nullptr, ETeleportType::None);
+		
 		if (OnHitDelegate.IsBound())
 			OnHitDelegate.Broadcast(HitResult);
 		else
@@ -97,6 +104,7 @@ void UCOD_ProjMoveComponent_Base::InitBulletData(float _Mass, float _Cd, float _
 	Cd = _Cd;
 	CrossSectionArea = _Area;
 	Velocity = GetOwner()->GetActorForwardVector() * (_MuzzleVelocity * _WeaponMultiplier);
+	
 }
 
 FVector UCOD_ProjMoveComponent_Base::ComputeAcceleration(float DeltaTime)
@@ -106,6 +114,7 @@ FVector UCOD_ProjMoveComponent_Base::ComputeAcceleration(float DeltaTime)
 
 FRotator UCOD_ProjMoveComponent_Base::SyncRotation(FVector _Velocity)
 {
+	// return _Velocity.GetSafeNormal().Rotation();
 	// 회전 동기화
 	FRotator Rot;
 	FVector Forward = _Velocity.GetSafeNormal();

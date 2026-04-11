@@ -4,13 +4,16 @@
 #include "ShooterWeapon.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Engine/World.h"
-#include "ShooterProjectile.h"
+// #include "ShooterProjectile.h"
+#include "MYP.h"
 #include "ShooterWeaponHolder.h"
 #include "Components/SceneComponent.h"
 #include "TimerManager.h"
 #include "Animation/AnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Pawn.h"
+#include "cod/BulletBase.h"
+#include "cod/COD_ProjMoveComponent_Base.h"
 
 AShooterWeapon::AShooterWeapon()
 {
@@ -171,7 +174,28 @@ void AShooterWeapon::FireProjectile(const FVector& TargetLocation)
 	SpawnParams.Owner = GetOwner();
 	SpawnParams.Instigator = PawnOwner;
 
-	AShooterProjectile* Projectile = GetWorld()->SpawnActor<AShooterProjectile>(ProjectileClass, ProjectileTransform, SpawnParams);
+	ABulletBase* Bullet = GetWorld()->SpawnActor<ABulletBase>(BulletClass, ProjectileTransform, SpawnParams);
+	
+	if (IsValid(Bullet))
+	{
+		LOGMSGF(TEXT("Bullet 스폰 성공: %s"), *Bullet->GetName());
+		
+		if (UCOD_ProjMoveComponent_Base* MoveComp = Bullet->FindComponentByClass<UCOD_ProjMoveComponent_Base>())
+		{
+			LOGMSGF(TEXT("MoveComp 찾음: %s"), *MoveComp->GetName());
+			MoveComp->InitBulletData(Bullet->Mass, Bullet->CD, Bullet->CrossSectionArea,
+									 Bullet->MuzzleVelocity, WeaponMultiplier);
+		}
+		else
+		{
+			LOGMSGF(TEXT("MoveComp 못찾음"));
+		}
+	}
+	else
+	{
+		LOGMSGF(TEXT("Bullet 생성 실패"));
+	}
+	
 
 	// play the firing montage
 	WeaponOwner->PlayFiringMontage(FiringMontage);

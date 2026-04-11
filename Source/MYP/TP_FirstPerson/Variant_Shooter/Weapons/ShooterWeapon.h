@@ -13,6 +13,7 @@ class AShooterProjectile;
 class USkeletalMeshComponent;
 class UAnimMontage;
 class UAnimInstance;
+class ABulletBase;
 
 /**
  *  Base class for a simple first person shooter weapon
@@ -39,8 +40,18 @@ protected:
 	IShooterWeaponHolder* WeaponOwner;
 
 	/** Type of projectiles this weapon will shoot */
+	// UPROPERTY(EditAnywhere, Category="Ammo")
+	// TSubclassOf<AShooterProjectile> ProjectileClass;
+	
+	///////////////////////////////////////////
+	/*********** BulletBase 추가됨 ***********/
 	UPROPERTY(EditAnywhere, Category="Ammo")
-	TSubclassOf<AShooterProjectile> ProjectileClass;
+	TSubclassOf<ABulletBase> BulletClass;
+	
+	UPROPERTY(EditAnywhere, Category="Ammo")
+	float WeaponMultiplier = 1.f;
+	//////////////////////////////////////////
+	
 
 	/** Number of bullets in a magazine */
 	UPROPERTY(EditAnywhere, Category="Ammo", meta = (ClampMin = 0, ClampMax = 100))

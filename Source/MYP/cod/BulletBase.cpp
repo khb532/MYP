@@ -1,6 +1,8 @@
 ﻿
 #include "BulletBase.h"
 
+#include "COD_ProjMoveComponent_Base.h"
+
 
 ABulletBase::ABulletBase()
 {
@@ -12,14 +14,10 @@ void ABulletBase::BeginPlay()
 	Super::BeginPlay();
 
 	// WeaponMultiplier는 Weapon이 InitWithBulletData 호출 시 전달
-	// → BeginPlay 전에 호출되므로 여기서는 바인딩만
-	
-	/*
 	if (UCOD_ProjMoveComponent_Base* MoveComp = FindComponentByClass<UCOD_ProjMoveComponent_Base>())
 	{
 		MoveComp->OnHitDelegate.AddDynamic(this, &ABulletBase::OnMovementHit);
 	}
-	*/
 }
 
 void ABulletBase::OnMovementHit(const FHitResult& HitResult)
