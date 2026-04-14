@@ -37,15 +37,21 @@ UMG, Slate, SlateCore
 
 **중앙 로그 카테고리**: 프로젝트의 메인 헤더 파일 (`{ProjectName}.h`)에 선언
 
-**편의 매크로 예시**:
+**로그 카테고리**: `MYPLog` (Warning 기본, All 컴파일)
+
+**편의 매크로** (`Source/MYP/MYP.h`):
 ```cpp
-SHOWLOG(Format, ...)     // 파일:라인:함수 포함 Info 레벨
-SHOWLOGF(Format, ...)    // 포맷 인자 포함 Info
-SHOWWARN(Format, ...)    // Warning 레벨
-SHOWERROR(Format, ...)   // Error 레벨
+LOGMSG()                   // 함수명[라인] — Warning 레벨
+LOGMSGF(Format, ...)       // 함수명[라인] | 메시지 — Warning 레벨
+LOGWARN()                  // 함수명[라인] — Warning 레벨
+LOGWARNF(Format, ...)      // 함수명[라인] | 메시지 — Warning 레벨
+LOGERROR()                 // 함수명[라인] — Error 레벨
+LOGERRORF(Format, ...)     // 함수명[라인] | 메시지 — Error 레벨
 ```
 
 **사용법**: 프로젝트에 정의된 로깅 매크로가 있다면 일관성을 위해 `UE_LOG` 대신 해당 매크로를 선호합니다.
+- 포맷 없이 위치만 남길 때: `LOGMSG()`, `LOGWARN()`, `LOGERROR()`
+- 값을 함께 출력할 때: `LOGMSGF(TEXT("Speed=%f"), Speed)`
 
 ## 개발 가이드라인
 
@@ -58,6 +64,18 @@ SHOWERROR(Format, ...)   // Error 레벨
 - 인터페이스 메서드는 항상 헤더 선언과 C++ 정의 모두 구현
 - `UINTERFACE`/`IInterface` 패턴 사용 (UE4/5 표준)
 
+
+## 산출물 저장 경로
+
+레포트, 문서, 설계 초안 등 모든 산출물은 아래 경로에 저장합니다:
+
+```
+D:\DoveObs\Reports\MYP\{BranchName}\
+```
+
+- `{BranchName}`은 산출물 생성 시점에 `git branch --show-current`로 확인한 현재 브랜치명을 사용
+- 일일 레포트: `Daily_Report_{YYYY-MM-DD}.md`
+- 설계 문서, 기획 초안 등: 내용에 맞는 파일명으로 동일 폴더에 저장
 
 ## 주요 파일 레퍼런스
 
