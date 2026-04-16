@@ -12,9 +12,7 @@ class MYP_API UProfilingWidget : public UUserWidget
 	/* Method */
 public:
 	void PrintValue(float value, FString name, AActor* owner);
-
-private:
-	void RemoveChannel(const FString& name);
+	void RemoveChannelByName(const FString& name);
 
 
 

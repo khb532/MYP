@@ -11,25 +11,30 @@ class MYP_API UProfilingChannel : public UUserWidget
 
 	/* Method */
 public:
+	virtual void NativeConstruct() override;
 	void SetChannelName(const FString& InName);
 	void SetValue(float InValue);
 
+protected:
 
-
-private:
-
-
-
+	
+	
 	/* Field */
 public:
-
-
+	
+	
 
 private:
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<class UVerticalBox> Channel_Vertical;
+	
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<class UTextBlock> Text_Name;
 
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<class UTextBlock> Text_Value;
+	
+	UPROPERTY()
+	TObjectPtr<class UMYP_Graph> GraphWidget;
 
 };

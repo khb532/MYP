@@ -16,6 +16,7 @@ public:
 	UCOD_ProjMoveComponent_Base();
 
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	void InitBulletData(float  _Mass, float _Cd, float _Area, float _MuzzleVelocity, float _WeaponMultiplier = 1.f);
 	
@@ -48,5 +49,7 @@ private:
 	TObjectPtr<USceneComponent> UpdatedComponent = nullptr;
 	
 	TArray<FVector> TrajectoryPoints;
+	
+	TObjectPtr<class AMYP_TestGameMode> GM = nullptr;
 	
 };

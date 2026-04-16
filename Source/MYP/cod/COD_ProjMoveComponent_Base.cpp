@@ -1,7 +1,10 @@
 ﻿#include "COD_ProjMoveComponent_Base.h"
 #include "MYP.h"
 #include "DrawDebugHelpers.h"
+#include "MYP_TestGameMode.h"
 #include "VectorUtil.h"
+#include "Kismet/GameplayStatics.h"
+#include "Misc/ProfilingWidget.h"
 
 UCOD_ProjMoveComponent_Base::UCOD_ProjMoveComponent_Base()
 {
@@ -30,6 +33,18 @@ void UCOD_ProjMoveComponent_Base::BeginPlay()
 		return;
 	}
 	
+	GM = Cast<AMYP_TestGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+}
+
+void UCOD_ProjMoveComponent_Base::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+
+	if (IsValid(GM) && IsValid(GetOwner()))
+	{
+		if (UProfilingWidget* Widget = GM->GetProfilingWidget())
+			Widget->RemoveChannelByName(FString::Printf(TEXT("[%s_Velocity(m/s)]"), *GetOwner()->GetName()));
+	}
 }
 
 void UCOD_ProjMoveComponent_Base::TickComponent(float DeltaTime, ELevelTick TickType,
@@ -62,6 +77,11 @@ void UCOD_ProjMoveComponent_Base::TickComponent(float DeltaTime, ELevelTick Tick
 
 	// 물리 적분
 	Velocity += ComputeAcceleration(DeltaTime) * DeltaTime;
+	
+	if (IsValid(GM))
+		PrintProfile(GM->GetProfilingWidget(), Velocity.Size() / 100.f,
+	FString::Printf(TEXT("[%s_Velocity(m/s)]"), *GetOwner()->GetName()), GetOwner());
+	
 	FVector Delta = Velocity * DeltaTime;
 	FVector NewPos = UpdatedComponent->GetComponentLocation() + Delta;
 	

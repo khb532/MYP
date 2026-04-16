@@ -9,7 +9,7 @@ void UProfilingWidget::PrintValue(float value, FString name, AActor* owner)
 	{
 		if (!ChannelOwners[name].IsValid())
 		{
-			RemoveChannel(name);
+			RemoveChannelByName(name);
 		}
 	}
 
@@ -31,7 +31,7 @@ void UProfilingWidget::PrintValue(float value, FString name, AActor* owner)
 	Channels[name]->SetValue(value);
 }
 
-void UProfilingWidget::RemoveChannel(const FString& name)
+void UProfilingWidget::RemoveChannelByName(const FString& name)
 {
 	if (UProfilingChannel* Channel = Channels.FindRef(name))
 	{
