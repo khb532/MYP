@@ -6,7 +6,18 @@
 
 ABulletBase::ABulletBase()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+}
+
+void ABulletBase::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (!bHit && GetActorLocation().Z < 0.f)
+	{
+		bHit = true;
+		DeferredDestroy();
+	}
 }
 
 void ABulletBase::BeginPlay()

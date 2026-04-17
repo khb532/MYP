@@ -93,6 +93,14 @@ void UCOD_ProjMoveComponent_Base::TickComponent(float DeltaTime, ELevelTick Tick
 	FHitResult HitResult;
 	bool bHit = GetWorld()->SweepSingleByChannel(HitResult, UpdatedComponent->GetComponentLocation(), NewPos, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(5.f), Params);
 
+	// 지면(Z=0) 이탈 처리
+	if (NewPos.Z <= 0.f)
+	{
+		Velocity = FVector::ZeroVector;
+		SetComponentTickEnabled(false);
+		return;
+	}
+
 	// Hit
 	if(bHit)
 	{
@@ -106,7 +114,8 @@ void UCOD_ProjMoveComponent_Base::TickComponent(float DeltaTime, ELevelTick Tick
 		{
 			LOGERRORF(TEXT("Hitting Actor Not Bound"));
 		}
-		
+
+		Velocity = FVector::ZeroVector;
 		SetComponentTickEnabled(false);
 	}
 	else

@@ -12,7 +12,9 @@ class MYP_API ABulletBase : public AActor
 	/* Method */
 public:
 	ABulletBase();
-	
+
+	virtual void Tick(float DeltaTime) override;
+
 	UFUNCTION()
 	void OnMovementHit(const FHitResult& HitResult);
 	
@@ -42,7 +44,7 @@ public:
 	float MuzzleVelocity = 90000.f;		// 총구속도(cm/s)
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ballistics")
-	float CrossSectionArea = 1.f;		// 단면적(cm²)
+	float CrossSectionArea = 0.243f;	// 단면적(cm²) — 5.56mm 기준 π×(0.278)²
 	
 	//	Damage
 	//	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ballistics")
