@@ -123,7 +123,9 @@ void UCOD_ProjMoveComponent_Base::TickComponent(float DeltaTime, ELevelTick Tick
 		TrajectoryPoints.Add(NewPos);
 		DrawDebugLine(GetWorld(), UpdatedComponent->GetComponentLocation(), NewPos, FColor::Red, false, 2.f);
 		UpdatedComponent->SetWorldLocation(NewPos, false, nullptr, ETeleportType::None);
-		UpdatedComponent->SetWorldRotation(SyncRotation(Velocity), false, nullptr, ETeleportType::None);
+		
+		if (bSyncRot)
+			UpdatedComponent->SetWorldRotation(SyncRotation(Velocity), false, nullptr, ETeleportType::None);
 	}
 }
 

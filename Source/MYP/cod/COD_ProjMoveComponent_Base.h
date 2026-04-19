@@ -18,12 +18,13 @@ public:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-	void InitBulletData(float  _Mass, float _Cd, float _Area, float _MuzzleVelocity, float _WeaponMultiplier = 1.f);
+	virtual void InitBulletData(float _Mass, float _Cd, float _Area, float _MuzzleVelocity, float _WeaponMultiplier = 1.f);
 	
 protected:
 	virtual FVector ComputeAcceleration(float DeltaTime);
 	
-private:
+// [ROCKET] Rocket 서브클래스 재사용을 위해 private → protected 변경
+protected:
 	FRotator SyncRotation(FVector _Velocity);
 
 	
@@ -42,6 +43,8 @@ protected:
 	float Cd = 0.3f;
 	
 	float CrossSectionArea = 1.f;
+	
+	bool bSyncRot = true;
 
 private:
 	// 실제로 이동시킬 대상 컴포넌트 (BeginPlay에서 Owner의 RootComponent로 바인딩)

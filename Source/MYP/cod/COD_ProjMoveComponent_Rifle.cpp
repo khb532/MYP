@@ -5,6 +5,8 @@
 UCOD_ProjMoveComponent_Rifle::UCOD_ProjMoveComponent_Rifle()
 {
 	PrimaryComponentTick.bCanEverTick = true;
+	
+	bSyncRot = true;
 }
 
 FVector UCOD_ProjMoveComponent_Rifle::ComputeAcceleration(float DeltaTime)
