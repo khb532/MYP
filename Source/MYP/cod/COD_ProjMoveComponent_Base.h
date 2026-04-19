@@ -35,6 +35,10 @@ public:
 	FOnBulletHitDelegate OnHitDelegate;
 
 protected:
+	// 실제로 이동시킬 대상 컴포넌트 (BeginPlay에서 Owner의 RootComponent로 바인딩)
+	UPROPERTY()
+	TObjectPtr<USceneComponent> UpdatedComponent = nullptr;
+	
 	// 현재 프레임 속도 벡터 (매 Tick마다 물리 적분으로 갱신됨)
 	FVector Velocity = FVector::ZeroVector;
 	
@@ -47,12 +51,9 @@ protected:
 	bool bSyncRot = true;
 
 private:
-	// 실제로 이동시킬 대상 컴포넌트 (BeginPlay에서 Owner의 RootComponent로 바인딩)
-	UPROPERTY()
-	TObjectPtr<USceneComponent> UpdatedComponent = nullptr;
-	
 	TArray<FVector> TrajectoryPoints;
 	
+	UPROPERTY()
 	TObjectPtr<class AMYP_TestGameMode> GM = nullptr;
 	
 };

@@ -13,7 +13,7 @@ AJavelin::AJavelin()
 
 	CD = 0.4f;				// 항력계수
 
-	MuzzleVelocity = 0.f;	// 초기속도 0 — 로켓 추진으로 가속
+	MuzzleVelocity = 1000.f;	// 초기속도 0 — 로켓 추진으로 가속
 
 	CrossSectionArea = 126.7f;	// 단면적 (cm²) — 직경 127mm 기준
 	
