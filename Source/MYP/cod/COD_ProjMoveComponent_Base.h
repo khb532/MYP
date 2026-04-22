@@ -25,7 +25,7 @@ protected:
 	
 // [ROCKET] Rocket 서브클래스 재사용을 위해 private → protected 변경
 protected:
-	FRotator SyncRotation(FVector _Velocity);
+	FQuat SyncRotation(FVector _Velocity);
 
 	
 	

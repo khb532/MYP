@@ -121,7 +121,7 @@ void UCOD_ProjMoveComponent_Base::TickComponent(float DeltaTime, ELevelTick Tick
 	else
 	{
 		TrajectoryPoints.Add(NewPos);
-		DrawDebugLine(GetWorld(), UpdatedComponent->GetComponentLocation(), NewPos, FColor::Red, false, 2.f);
+		DrawDebugLine(GetWorld(), UpdatedComponent->GetComponentLocation(), NewPos, FColor::Red, true, 2.f);
 		UpdatedComponent->SetWorldLocation(NewPos, false, nullptr, ETeleportType::None);
 		
 		if (bSyncRot)
@@ -143,18 +143,14 @@ FVector UCOD_ProjMoveComponent_Base::ComputeAcceleration(float DeltaTime)
 	return FVector(0.f, 0.f, -980.f);
 }
 
-FRotator UCOD_ProjMoveComponent_Base::SyncRotation(FVector _Velocity)
+FQuat UCOD_ProjMoveComponent_Base::SyncRotation(FVector _Velocity)
 {
-	// return _Velocity.GetSafeNormal().Rotation();
-	// 회전 동기화
-	FRotator Rot;
-	FVector Forward = _Velocity.GetSafeNormal();
-	FVector Up = FVector::UpVector;
-	FVector Right = FVector::CrossProduct(Up, Forward).GetSafeNormal();
-	Up = FVector::CrossProduct(Forward, Right).GetSafeNormal();
-	FMatrix m = FMatrix(Forward, Right, Up, FVector::ZeroVector);
-	Rot = m.Rotator();
+	if (_Velocity.IsNearlyZero())
+		return IsValid(UpdatedComponent) ? UpdatedComponent->GetComponentQuat() : FQuat::Identity;
 	
-	return Rot;
+	const FVector Forward = _Velocity.GetSafeNormal();
+	FQuat TargetQuat = FRotationMatrix::MakeFromXZ(Forward, FVector::UpVector).ToQuat();
+	
+	return TargetQuat;
 }
 
